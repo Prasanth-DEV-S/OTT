@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/layout/dialog_continue_watching.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="320dp"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:background="@drawable/bg_dialog_rounded"
+    android:orientation="vertical"
+    android:paddingTop="24dp">
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingHorizontal="20dp"
+        android:text="Continue watching"
+        android:textColor="#000000"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- Message Content -->
+    <TextView
+        android:id="@+id/dialog_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        android:paddingHorizontal="24dp"
+        android:paddingBottom="24dp"
+        android:text="Your 15-second preview has ended. Choose a subscription plan to watch the full video."
+        android:textColor="#333333"
+        android:textSize="15sp"
+        android:lineSpacingMultiplier="1.1" />
+
+    <!-- Horizontal Divider above buttons -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#CCCCCC" />
+
+    <!-- Action Buttons Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal">
+
+        <!-- Negative Button (Not now) -->
+        <Button
+            android:id="@+id/btn_not_now"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Not now"
+            android:textAllCaps="false"
+            android:textColor="#007AFF"
+            android:textSize="17sp" />
+
+        <!-- Vertical Divider between buttons -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="#CCCCCC" />
+
+        <!-- Positive Button (OK) -->
+        <Button
+            android:id="@+id/btn_ok"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="OK"
+            android:textAllCaps="false"
+            android:textColor="#007AFF"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,83 @@
+                         STREAM
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+          MOBILE UI                    TV UI
+     Jetpack Compose             Compose for TV
+              │                           │
+              │                           │
+              └─────────────┬─────────────┘
+                            │
+                    Shared Presentation
+                            │
+                         MVI
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+          Domain Layer                Data Layer
+              │                           │
+        Use Cases / Logic          Repository / Firebase
+                                          │
+                                   Local / Remote Data
+                            │
+                       Player Layer
+                     Media3 ExoPlayer
+
+                     MVI architecture
+
+                                  User
+                                    │
+                                    ▼
+                                  Intent
+                                    │
+                                    ▼
+                               ViewModel
+                                    │
+                            ┌───────┴────────┐
+                            │                │
+                            ▼                ▼
+                          State            Effect
+                            │                │
+                            ▼                ▼
+                            UI           Navigation/
+                                         one-time event
+
+
+                     For example, the user selects a video.
+                            TV Remote
+                               │
+                               ▼
+                            Video Card
+                               │
+                               ▼
+                            VideoClicked(video)
+                               │
+                               ▼
+                            HomeViewModel
+                               │
+                               ▼
+                            HomeEffect.OpenPlayer(video)
+                               │
+                               ▼
+                            TvHomeRoute
+                               │
+                               ▼
+                            TvPlayerActivity
+
+                     The same flow works for Mobile:
+                          Mobile Card
+                              │
+                              ▼
+                          VideoClicked(video)
+                              │
+                              ▼
+                          HomeViewModel
+                              │
+                              ▼
+                          HomeEffect.OpenPlayer(video)
+                              │
+                              ▼
+                          MobileHomeRoute
+                              │
+                              ▼
+                          MobilePlayerActivity

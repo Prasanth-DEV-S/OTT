@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/drawable/bg_purple_button.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#7F56FF" /> <!-- Vibrant purple color -->
+    <corners android:radius="14dp" /> <!-- Slightly sharper but smooth corners -->
+</shape>

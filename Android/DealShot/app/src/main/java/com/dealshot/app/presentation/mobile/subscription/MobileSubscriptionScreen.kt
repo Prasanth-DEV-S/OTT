@@ -1,0 +1,447 @@
+package com.dealshot.app.presentation.mobile.subscription
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dealshot.app.presentation.shared.subscription.SubscriptionIntent
+import com.dealshot.app.presentation.shared.subscription.SubscriptionPlan
+import com.dealshot.app.presentation.shared.subscription.SubscriptionState
+
+@Composable
+fun MobileSubscriptionScreen(
+    state: SubscriptionState,
+    onIntent: (SubscriptionIntent) -> Unit
+) {
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black,
+                        Color(0xFF080808),
+                        Color.Black
+                    )
+                )
+            )
+    ) {
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+        ) {
+
+            Spacer(
+                modifier = Modifier.height(10.dp)
+            )
+
+            // TOP BAR
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                IconButton(
+                    onClick = {
+                        onIntent(
+                            SubscriptionIntent.BackClicked
+                        )
+                    }
+                ) {
+
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = null,
+                        tint = Color(0xFF8B5CF6)
+                    )
+                }
+
+                Spacer(
+                    modifier = Modifier.weight(1f)
+                )
+
+                Text(
+                    text = "Subscription",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(
+                modifier = Modifier.height(10.dp)
+            )
+
+            // CROWN
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+
+                Text(
+                    text = "👑",
+                    fontSize = 60.sp
+                )
+            }
+
+            Spacer(
+                modifier = Modifier.height(10.dp)
+            )
+
+            Text(
+                text = "Watch without limits",
+                color = Color.White,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(
+                    Alignment.CenterHorizontally
+                )
+            )
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            Text(
+                text = "Choose the plan that works for you.",
+                color = Color.Gray,
+                fontSize = 13.sp,
+                modifier = Modifier.align(
+                    Alignment.CenterHorizontally
+                )
+            )
+
+            Spacer(
+                modifier = Modifier.height(20.dp)
+            )
+
+            // MONTHLY
+            SubscriptionCard(
+                title = "Monthly",
+                subtitle = "per month",
+                price = "₹199",
+                selected =
+                    state.selectedPlan ==
+                            SubscriptionPlan.MONTHLY,
+                saveText = null,
+                onClick = {
+
+                    onIntent(
+                        SubscriptionIntent.PlanSelected(
+                            SubscriptionPlan.MONTHLY
+                        )
+                    )
+                }
+            )
+
+            Spacer(
+                modifier = Modifier.height(16.dp)
+            )
+
+            // YEARLY
+            SubscriptionCard(
+                title = "Yearly",
+                subtitle = "per year",
+                price = "₹2,000",
+                selected =
+                    state.selectedPlan ==
+                            SubscriptionPlan.YEARLY,
+                saveText = "SAVE ₹388",
+                onClick = {
+
+                    onIntent(
+                        SubscriptionIntent.PlanSelected(
+                            SubscriptionPlan.YEARLY
+                        )
+                    )
+                }
+            )
+
+            Spacer(
+                modifier = Modifier.height(20.dp)
+            )
+
+            FeatureItem(
+                Icons.Default.PlayArrow,
+                "Unlimited movies & TV shows"
+            )
+
+            FeatureItem(
+                Icons.Default.Tv,
+                "Watch on all your devices"
+            )
+
+            FeatureItem(
+                Icons.Default.Download,
+                "Download and watch offline"
+            )
+
+            FeatureItem(
+                Icons.Default.Star,
+                "Ad-free experience"
+            )
+
+            Spacer(
+                modifier = Modifier.weight(1f)
+            )
+
+            // SUBSCRIBE BUTTON
+            Button(
+                onClick = {
+
+                    onIntent(
+                        SubscriptionIntent.SubscribeClicked
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF8B5CF6)
+                ),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+
+                Text(
+                    text =
+                        if (
+                            state.selectedPlan ==
+                            SubscriptionPlan.YEARLY
+                        ) {
+                            "Subscribe to Yearly"
+                        } else {
+                            "Subscribe to Monthly"
+                        },
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+
+            Spacer(
+                modifier = Modifier.height(16.dp)
+            )
+
+            Text(
+                text =
+                    "Demo purchase only. Connect StoreKit 2 before release.",
+                color = Color.Gray,
+                fontSize = 12.sp,
+                modifier = Modifier.align(
+                    Alignment.CenterHorizontally
+                )
+            )
+
+            Spacer(
+                modifier = Modifier.height(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun SubscriptionCard(
+    title: String,
+    subtitle: String,
+    price: String,
+    selected: Boolean,
+    saveText: String?,
+    onClick: () -> Unit
+) {
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                onClick()
+            }
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) {
+                    Color(0xFF8B5CF6)
+                } else {
+                    Color.DarkGray
+                },
+                shape = RoundedCornerShape(24.dp)
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF111111)
+        ),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+
+                Row(
+                    verticalAlignment =
+                        Alignment.CenterVertically
+                ) {
+
+                    Text(
+                        title,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (saveText != null) {
+
+                        Spacer(
+                            modifier = Modifier.width(8.dp)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .clip(
+                                    RoundedCornerShape(50)
+                                )
+                                .background(
+                                    Color(0xFF1F5F3B)
+                                )
+                                .padding(
+                                    horizontal = 12.dp,
+                                    vertical = 4.dp
+                                )
+                        ) {
+
+                            Text(
+                                saveText,
+                                color = Color(0xFF6FFF9C),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(
+                    modifier = Modifier.height(4.dp)
+                )
+
+                Text(
+                    subtitle,
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+
+                Spacer(
+                    modifier = Modifier.height(4.dp)
+                )
+
+                Text(
+                    price,
+                    color = Color.White,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (selected) {
+                            Color(0xFF8B5CF6)
+                        } else {
+                            Color.Transparent
+                        }
+                    )
+                    .border(
+                        2.dp,
+                        Color.LightGray,
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+
+                if (selected) {
+
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FeatureItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String
+) {
+
+    Row(
+        modifier = Modifier.padding(
+            vertical = 10.dp
+        ),
+        verticalAlignment =
+            Alignment.CenterVertically
+    ) {
+
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(
+                    Color(0xFF181818)
+                ),
+            contentAlignment =
+                Alignment.Center
+        ) {
+
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = Color.Gray
+            )
+        }
+
+        Spacer(
+            modifier = Modifier.width(16.dp)
+        )
+
+        Text(
+            text = text,
+            color = Color.Gray,
+            fontSize = 18.sp
+        )
+    }
+}

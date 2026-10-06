@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+    <!-- res/drawable/bg_dialog_success.xml -->
+    <shape xmlns:android="http://schemas.android.com/apk/res/android"
+        android:shape="rectangle">
+        <solid android:color="#3A3A3C" /> <!-- Dark gray background matching the image -->
+        <corners android:radius="24dp" /> <!-- Smooth rounded corners -->
+    </shape>

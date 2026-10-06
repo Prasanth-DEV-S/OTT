@@ -1,0 +1,151 @@
+com.DealShot.stream
+│
+├── data/
+│   │
+│   ├── video/
+│   │   ├── Video.kt
+│   │   ├── VideoData.kt
+│   │   ├── VideoRepository.kt
+│   │   └── VideoRepositoryImpl.kt
+│   │
+│   ├── auth/
+│   │   ├── AuthRepository.kt
+│   │   └── AuthRepositoryImpl.kt
+│   │
+│   ├── subscription/
+│   │   ├── Subscription.kt
+│   │   ├── SubscriptionPlan.kt
+│   │   ├── SubscriptionRepository.kt
+│   │   └── SubscriptionRepositoryImpl.kt
+│   │
+│   └── player/
+│       └── PlaybackRepository.kt
+│
+│
+├── domain/
+│   │
+│   ├── auth/
+│   │   ├── SendOtpUseCase.kt
+│   │   └── VerifyOtpUseCase.kt
+│   │
+│   ├── video/
+│   │   ├── GetFeaturedVideosUseCase.kt
+│   │   └── GetVideoDetailsUseCase.kt
+│   │
+│   ├── subscription/
+│   │   ├── GetSubscriptionPlansUseCase.kt
+│   │   ├── GetCurrentSubscriptionUseCase.kt
+│   │   ├── SubscribeUseCase.kt
+│   │   ├── CancelSubscriptionUseCase.kt
+│   │   └── CheckSubscriptionUseCase.kt
+│   │
+│   └── player/
+│       └── SavePlaybackPositionUseCase.kt
+│
+│
+├── presentation/
+│   │
+│   ├── shared/
+│   │   │
+│   │   ├── login/
+│   │   │   ├── LoginContract.kt
+│   │   │   └── LoginViewModel.kt
+│   │   │
+│   │   ├── otp/
+│   │   │   ├── OtpContract.kt
+│   │   │   └── OtpViewModel.kt
+│   │   │
+│   │   ├── home/
+│   │   │   ├── HomeContract.kt
+│   │   │   └── HomeViewModel.kt
+│   │   │
+│   │   ├── details/
+│   │   │   ├── VideoDetailsContract.kt
+│   │   │   └── VideoDetailsViewModel.kt
+│   │   │
+│   │   ├── subscription/
+│   │   │   ├── SubscriptionContract.kt
+│   │   │   └── SubscriptionViewModel.kt
+│   │   │
+│   │   └── player/
+│   │       ├── VideoPlayerContract.kt
+│   │       └── VideoPlayerViewModel.kt
+│   │
+│   │
+│   ├── mobile/
+│   │   │
+│   │   ├── login/
+│   │   │   ├── MobileLoginActivity.kt
+│   │   │   └── MobileLoginScreen.kt
+│   │   │
+│   │   ├── otp/
+│   │   │   ├── MobileOtpActivity.kt
+│   │   │   └── MobileOtpScreen.kt
+│   │   │
+│   │   ├── home/
+│   │   │   ├── MobileHomeActivity.kt
+│   │   │   ├── MobileHomeScreen.kt
+│   │   │   ├── MobileMovieCard.kt
+│   │   │   └── MobileHomeHeader.kt
+│   │   │
+│   │   ├── details/
+│   │   │   ├── MobileVideoDetailsActivity.kt
+│   │   │   └── MobileVideoDetailsScreen.kt
+│   │   │
+│   │   ├── subscription/
+│   │   │   ├── MobileSubscriptionActivity.kt
+│   │   │   ├── MobileSubscriptionScreen.kt
+│   │   │   ├── MobileSubscriptionCard.kt
+│   │   │   └── MobileSubscriptionHeader.kt
+│   │   │
+│   │   └── player/
+│   │       ├── MobilePlayerActivity.kt
+│   │       └── MobilePlayerScreen.kt
+│   │
+│   │
+│   └── tv/
+│       │
+│       ├── login/
+│       │   └── TvLoginScreen.kt
+│       │
+│       ├── otp/
+│       │   └── TvOtpScreen.kt
+│       │
+│       ├── home/
+│       │   ├── TvHomeActivity.kt
+│       │   ├── TvHomeScreen.kt
+│       │   ├── TvMovieCard.kt
+│       │   └── TvHomeHeader.kt
+│       │
+│       ├── details/
+│       │   ├── TvVideoDetailsActivity.kt
+│       │   └── TvVideoDetailsScreen.kt
+│       │
+│       ├── subscription/
+│       │   ├── TvSubscriptionActivity.kt
+│       │   ├── TvSubscriptionScreen.kt
+│       │   ├── TvSubscriptionCard.kt
+│       │   └── TvSubscriptionHeader.kt
+│       │
+│       └── player/
+│           ├── TvPlayerActivity.kt
+│           └── TvPlayerScreen.kt
+│
+│
+└── core/
+    │
+    ├── navigation/
+    │   └── AppNavigation.kt
+    │
+    ├── ui/
+    │   ├── theme/
+    │   └── components/
+    │
+    ├── network/
+    │   └── NetworkModule.kt
+    │
+    ├── media/
+    │   └── Media3Manager.kt
+    │
+    └── utils/
+        └── Validators.kt

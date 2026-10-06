@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Stream" parent="android:Theme.Material.NoActionBar" />
+
+    <style name="Theme.Stream.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#000000</item>
+
+        <item name="windowSplashScreenAnimatedIcon">
+            @drawable/ic_launcherdealshot_splash_safe
+        </item>
+
+        <item name="postSplashScreenTheme">
+            @style/Theme.Stream
+        </item>
+    </style>
+
+</resources>

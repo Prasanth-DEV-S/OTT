@@ -1,0 +1,28 @@
+/////////Start at 11/09/2026 ////////////
+Screens
+    01-login
+    02-otp-verification
+    02-video-listing
+    03-subscription-prompt
+    04-subscription-plans
+    05-subscription-success
+    06-subscribed-player
+////////// Completed - 15/09/2026 ////////////////
+
+/////////Start at 16/09/2026 ////////////
+  Subscription Function
+  SubscriptionActivity
+
+  /////////Start at 17/09/2026 ////////////
+  video player - Functionality
+
+  completed the all screen except full screen view (Alignment issue only)
+  cva
+  co
+  sugth
+
+  ////////////// 20/09/2026 ///////////////
+
+  full screen
+  login maintaining
+  video duration maintaining
