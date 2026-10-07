@@ -1,4 +1,4 @@
-package com.dealshot.app.presentation.mobile.home
+package com.dealshot.app.presentation.mobile.likeAndList
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

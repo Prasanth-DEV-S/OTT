@@ -37,7 +37,7 @@ import com.dealshot.app.data.remote.dto.VideoDto
 import com.dealshot.app.data.remote.repository.VideoRepositoryImpl
 import com.dealshot.app.presentation.mobile.subscription.SubscriptionActivity
 import com.dealshot.app.presentation.mobile.category.CategoryVideosRoute
-import com.dealshot.app.presentation.mobile.home.VideoCollectionScreen
+import com.dealshot.app.presentation.mobile.likeAndList.VideoCollectionScreen
 import kotlinx.coroutines.flow.first
 
 private object StreamRoutes {

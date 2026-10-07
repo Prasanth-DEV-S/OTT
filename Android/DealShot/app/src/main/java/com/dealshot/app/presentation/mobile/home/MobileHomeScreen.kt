@@ -1,6 +1,7 @@
 package com.dealshot.app.presentation.mobile.home
 
 import android.util.Log
+import android.view.LayoutInflater
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,6 +76,11 @@ import com.dealshot.app.data.remote.dto.VideoDto
 import com.dealshot.app.ui.theme.HintText
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.pager.PageSize
+import androidx.media3.common.PlaybackException
+import kotlinx.coroutines.delay
+import com.dealshot.app.R
+import androidx.compose.ui.graphics.graphicsLayer
+
 @kotlin.OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun HomeScreen(
@@ -84,12 +90,18 @@ fun HomeScreen(
 
 
     val context = LocalContext.current
-    val userPreferences = UserPreferences(context)
     // 1. Single shared ExoPlayer instance initialized once for the whole screen
     val sharedExoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
-            volume = 0f // Muted previews
-            repeatMode = Player.REPEAT_MODE_ONE // Loop videos seamlessly
+            volume = 0f
+            repeatMode = Player.REPEAT_MODE_ONE
+        }
+    }
+
+    val featuredExoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            volume = 0f
+            repeatMode = Player.REPEAT_MODE_ONE
         }
     }
     var showProfileDialog by remember {
@@ -103,12 +115,9 @@ fun HomeScreen(
     DisposableEffect(Unit) {
         onDispose {
             sharedExoPlayer.release()
+            featuredExoPlayer.release()
         }
     }
-    var selectedSection by remember {
-        mutableStateOf("Home")
-    }
-
     if (showProfileDialog) {
         ProfileDialog(
             onDismiss = {
@@ -124,28 +133,28 @@ fun HomeScreen(
         )
     }
     val allVideos = state.allVideos
-/*    val sections = buildList {
-        add("Home")
-
-        addAll(
-            allVideos
-                .mapNotNull { it.category?.trim() }
-                .filter { it.isNotBlank() }
-                .distinct()
-                .sorted()
-        )
-
-        if (allVideos.any { it.isPremium }) {
-            add("Premium")
-        }
-    }*/
-    val sections = buildList {
+    /*    val sections = buildList {
             add("Home")
-            add("National")
-            add("International")
-            add("Motivations")
-            add("Inspirational")
-            add("Academic")
+
+            addAll(
+                allVideos
+                    .mapNotNull { it.category?.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sorted()
+            )
+
+            if (allVideos.any { it.isPremium }) {
+                add("Premium")
+            }
+        }*/
+    val sections = buildList {
+        add("Home")
+        add("National")
+        add("International")
+        add("Motivations")
+        add("Inspirational")
+        add("Academic")
     }
 
 
@@ -323,8 +332,7 @@ fun HomeScreen(
                 )
             }
 
-        }
-        else {
+        } else {
 
             val availableCategories = allVideos
                 .filter { video ->
@@ -346,6 +354,7 @@ fun HomeScreen(
                         allVideos = allVideos,
                         availableCategories = availableCategories,
                         sharedExoPlayer = sharedExoPlayer,
+                        featuredExoPlayer = featuredExoPlayer,
                         activeVideoUrl = activeVideoUrl,
                         onActiveVideoUrlChanged = {
                             activeVideoUrl = it
@@ -363,6 +372,7 @@ fun HomeScreen(
                     PremiumContent(
                         premiumVideos = premiumVideos,
                         sharedExoPlayer = sharedExoPlayer,
+                        featuredExoPlayer = featuredExoPlayer,
                         activeVideoUrl = activeVideoUrl,
                         onActiveVideoUrlChanged = {
                             activeVideoUrl = it
@@ -388,6 +398,7 @@ fun HomeScreen(
                         selectedCategory = selectedCategory,
                         categoryVideos = categoryVideos,
                         sharedExoPlayer = sharedExoPlayer,
+                        featuredExoPlayer = featuredExoPlayer,
                         activeVideoUrl = activeVideoUrl,
                         onActiveVideoUrlChanged = {
                             activeVideoUrl = it
@@ -404,11 +415,101 @@ fun HomeScreen(
 private fun PremiumContent(
     premiumVideos: List<VideoDto>,
     sharedExoPlayer: ExoPlayer,
+    featuredExoPlayer: ExoPlayer,
     activeVideoUrl: String?,
     onActiveVideoUrlChanged: (String?) -> Unit,
     onIntent: (HomeIntent) -> Unit
 ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(28.dp),
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            end = 20.dp,
+            bottom = 24.dp
+        )
+    ) {
+        item {
+            if (premiumVideos.isNotEmpty()) {
+                FeaturedVideoSection(
+                    videos = premiumVideos,
+                    exoPlayer = featuredExoPlayer,
+                    onWatchNow = { video ->
+                        onIntent(HomeIntent.VideoClicked(video))
+                    },
+                    onMyList = {
+                        onIntent(HomeIntent.MyListClicked)
+                    }
+                )
+            }
+        }
 
+        item {
+            if (premiumVideos.isNotEmpty()) {
+                VideoCategorySection(
+                    title = "Premium",
+                    videos = premiumVideos,
+                    sharedExoPlayer = sharedExoPlayer,
+                    activeVideoUrl = activeVideoUrl,
+                    onPlayVideo = { video ->
+                        playVideo(
+                            video = video,
+                            activeVideoUrl = activeVideoUrl,
+                            onActiveUrlChanged = onActiveVideoUrlChanged,
+                            player = sharedExoPlayer
+                        )
+                    },
+                    onSeeAll = { categoryName ->
+                        onIntent(HomeIntent.SeeAllClicked(categoryName))
+                    },
+                    onVideoClick = { video ->
+                        onIntent(HomeIntent.VideoClicked(video))
+                    }
+                )
+            }
+        }
+    }
+}
+
+
+private fun playVideo(
+    video: VideoDto,
+    activeVideoUrl: String?,
+    onActiveUrlChanged: (String?) -> Unit,
+    player: ExoPlayer
+) {
+    val url = video.videoUrl?.trim()
+
+    if (url.isNullOrBlank()) {
+        return
+    }
+
+    if (activeVideoUrl == url) {
+        return
+    }
+
+    onActiveUrlChanged(url)
+
+    player.stop()
+    player.clearMediaItems()
+
+    player.setMediaItem(
+        MediaItem.fromUri(url)
+    )
+
+    player.prepare()
+    player.playWhenReady = true
+}
+@Composable
+private fun CategoryContent(
+    selectedCategory: String,
+    categoryVideos: List<VideoDto>,
+    sharedExoPlayer: ExoPlayer,
+    featuredExoPlayer: ExoPlayer,
+    activeVideoUrl: String?,
+    onActiveVideoUrlChanged: (String?) -> Unit,
+    onIntent: (HomeIntent) -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(28.dp),
@@ -419,16 +520,12 @@ private fun PremiumContent(
         )
     ) {
 
-        /*
-         * Premium Featured Banner
-         */
         item {
-
-            if (premiumVideos.isNotEmpty()) {
+            if (categoryVideos.isNotEmpty()) {
 
                 FeaturedVideoSection(
-                    videos = premiumVideos,
-                    exoPlayer = sharedExoPlayer,
+                    videos = categoryVideos,
+                    exoPlayer = featuredExoPlayer,
 
                     onWatchNow = { video ->
                         onIntent(
@@ -445,21 +542,16 @@ private fun PremiumContent(
             }
         }
 
-        /*
-         * Premium Video Row
-         */
         item {
-
-            if (premiumVideos.isNotEmpty()) {
+            if (categoryVideos.isNotEmpty()) {
 
                 VideoCategorySection(
-                    title = "Premium",
-                    videos = premiumVideos,
+                    title = selectedCategory,
+                    videos = categoryVideos,
                     sharedExoPlayer = sharedExoPlayer,
                     activeVideoUrl = activeVideoUrl,
 
                     onPlayVideo = { video ->
-
                         playVideo(
                             video = video,
                             activeVideoUrl = activeVideoUrl,
@@ -467,13 +559,14 @@ private fun PremiumContent(
                             player = sharedExoPlayer
                         )
                     },
+
                     onSeeAll = { categoryName ->
                         onIntent(
                             HomeIntent.SeeAllClicked(categoryName)
                         )
                     },
-                    onVideoClick = { video ->
 
+                    onVideoClick = { video ->
                         onIntent(
                             HomeIntent.VideoClicked(video)
                         )
@@ -483,64 +576,6 @@ private fun PremiumContent(
         }
     }
 }
-@Composable
-private fun CategoryContent(
-    title: String,
-    videos: List<VideoDto>,
-    sharedExoPlayer: ExoPlayer,
-    activeVideoUrl: String?,
-    onActiveVideoUrlChanged: (String?) -> Unit,
-    onPlayVideo: (VideoDto) -> Unit,
-    onVideoClick: (VideoDto) -> Unit,
-    onSeeAll: (String) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            end = 20.dp,
-            bottom = 24.dp
-        )
-    ) {
-
-        item {
-
-            VideoCategorySection(
-                title = title,
-                videos = videos,
-                sharedExoPlayer = sharedExoPlayer,
-                activeVideoUrl = activeVideoUrl,
-                onPlayVideo = onPlayVideo,
-                onVideoClick = onVideoClick,
-                onSeeAll = onSeeAll
-
-            )
-        }
-    }
-}
-
-private fun playVideo(
-    video: VideoDto,
-    activeVideoUrl: String?,
-    onActiveUrlChanged: (String?) -> Unit,
-    player: ExoPlayer
-) {
-    if (activeVideoUrl != video.videoUrl) {
-
-        onActiveUrlChanged(video.videoUrl)
-
-        video.videoUrl?.let {
-            player.setMediaItem(
-                MediaItem.fromUri(it)
-            )
-        }
-
-        player.prepare()
-        player.playWhenReady = true
-    }
-}
-
 @Composable
 fun VideoCategorySection(
     title: String,
@@ -624,11 +659,6 @@ private fun VideoCard(
     onClick: () -> Unit
 ) {
     // Tell the parent system to switch to this video file when selected
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            onActive()
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -640,7 +670,8 @@ private fun VideoCard(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
                         useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        resizeMode =
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
                         player = exoPlayer
                     }
                 },
@@ -652,7 +683,10 @@ private fun VideoCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(14.dp)),
+                onRelease = {
+                    it.player = null
+                }
             )
         } else {
             // Lightweight placeholder surface prevents OOM exceptions
@@ -691,6 +725,7 @@ private fun VideoCard(
         }
     }
 }
+
 @Composable
 fun ProfileDialog(
     onDismiss: () -> Unit,
@@ -731,7 +766,8 @@ fun ProfileDialog(
                         // Consume click so it does not dismiss
                     }
                     .width(
-                        250.dp)
+                        250.dp
+                    )
                     .padding(
                         horizontal = 24.dp,
                         vertical = 22.dp
@@ -753,9 +789,9 @@ fun ProfileDialog(
                     text = if (isGuest) "Log In" else "Log out",
                     color = if (isGuest) {
                         Color(0xFF1E6705)
-                    }else {
-                        Color(0xFFFF5252)}
-                    ,
+                    } else {
+                        Color(0xFFFF5252)
+                    },
                     fontSize = 20.sp,
                     modifier = Modifier
                         .clickable {
@@ -773,6 +809,7 @@ private fun HomeContent(
     allVideos: List<VideoDto>,
     availableCategories: List<String>,
     sharedExoPlayer: ExoPlayer,
+    featuredExoPlayer: ExoPlayer,
     activeVideoUrl: String?,
     onActiveVideoUrlChanged: (String?) -> Unit,
     onIntent: (HomeIntent) -> Unit
@@ -790,7 +827,7 @@ private fun HomeContent(
             if (bannerVideos.isNotEmpty()) {
                 FeaturedVideoSection(
                     videos = bannerVideos,
-                    exoPlayer = sharedExoPlayer,
+                    exoPlayer = featuredExoPlayer,
 
                     onWatchNow = { video ->
                         onIntent(
@@ -852,6 +889,9 @@ private fun HomeContent(
         }
     }
 }
+
+private const val BANNER_VIDEO_DELAY_MS = 5_000L
+
 @OptIn(UnstableApi::class)
 @Composable
 private fun FeaturedVideoSection(
@@ -862,90 +902,202 @@ private fun FeaturedVideoSection(
 ) {
     if (videos.isEmpty()) return
 
+    var isBuffering by remember {
+        mutableStateOf(false)
+    }
+
+    var hasPlayerError by remember {
+        mutableStateOf(false)
+    }
+
+    var isVideoReady by remember {
+        mutableStateOf(false)
+    }
+
     val pagerState = rememberPagerState(
         initialPage = 0,
         pageCount = { Int.MAX_VALUE }
     )
 
-//    val currentVideo = videos[pagerState.currentPage]
+    /*
+     * IMPORTANT:
+     * Use settledPage for playback.
+     */
+    val currentIndex =
+        pagerState.settledPage % videos.size
+
     val currentVideo =
-        videos[pagerState.currentPage % videos.size]
+        videos[currentIndex]
+
     /*
      * --------------------------------
-     * PLAY CURRENT BANNER VIDEO
+     * PLAYER LISTENER
      * --------------------------------
      */
-    LaunchedEffect(currentVideo.id) {
 
-        val videoUrl = currentVideo.videoUrl
+    DisposableEffect(exoPlayer) {
 
-        if (!videoUrl.isNullOrBlank()) {
+        val listener = object : Player.Listener {
 
-            Log.d(
-                "FeaturedVideo",
-                "Playing banner: ${currentVideo.title}"
-            )
+            override fun onPlaybackStateChanged(
+                playbackState: Int
+            ) {
 
-            Log.d(
-                "FeaturedVideo",
-                "URL: $videoUrl"
-            )
+                isBuffering =
+                    playbackState == Player.STATE_BUFFERING
 
-            exoPlayer.stop()
+                Log.d(
+                    "FeaturedVideo",
+                    "PlaybackState=$playbackState"
+                )
+            }
 
-            exoPlayer.clearMediaItems()
+            override fun onRenderedFirstFrame() {
 
-            exoPlayer.setMediaItem(
-                MediaItem.fromUri(videoUrl)
-            )
+                Log.d(
+                    "FeaturedVideo",
+                    "First frame rendered"
+                )
 
-            exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
+                isVideoReady = true
+                isBuffering = false
+            }
 
-            exoPlayer.volume = 0f
+            override fun onIsPlayingChanged(
+                isPlaying: Boolean
+            ) {
 
-            exoPlayer.prepare()
+                Log.d(
+                    "FeaturedVideo",
+                    "isPlaying=$isPlaying"
+                )
+            }
 
-            exoPlayer.playWhenReady = true
+            override fun onPlayerError(
+                error: PlaybackException
+            ) {
 
-        } else {
+                Log.e(
+                    "FeaturedVideo",
+                    "Banner player error",
+                    error
+                )
 
-            Log.e(
-                "FeaturedVideo",
-                "Banner video URL is empty: ${currentVideo.title}"
-            )
+                hasPlayerError = true
+                isBuffering = false
+                isVideoReady = false
+            }
+        }
 
-            exoPlayer.stop()
+        exoPlayer.addListener(listener)
+
+        onDispose {
+            exoPlayer.removeListener(listener)
         }
     }
 
     /*
      * --------------------------------
-     * AUTOMATICALLY MOVE TO NEXT BANNER
+     * CHANGE BANNER
      * --------------------------------
+     *
+     * IMPORTANT:
+     *
      */
-/*    LaunchedEffect(pagerState, videos.size) {
 
-        while (true) {
+    LaunchedEffect(pagerState.settledPage) {
 
-            delay(6000)
+        /*
+         * Immediately hide old video.
+         */
+        isVideoReady = false
+        hasPlayerError = false
+        isBuffering = false
 
-            if (videos.size > 1) {
+        /*
+         * Completely stop previous video.
+         */
+        exoPlayer.stop()
+        exoPlayer.clearMediaItems()
 
-                val nextPage =
-                    (pagerState.currentPage + 1) % videos.size
+        val videoUrl =
+            currentVideo.promoVideoUrl?.trim()
 
-                pagerState.animateScrollToPage(
-                    nextPage
-                )
-            }
+        Log.d(
+            "FeaturedVideo",
+            "================================"
+        )
+
+        Log.d(
+            "FeaturedVideo",
+            "Banner changed"
+        )
+
+        Log.d(
+            "FeaturedVideo",
+            "Page = ${pagerState.settledPage}"
+        )
+
+        Log.d(
+            "FeaturedVideo",
+            "Index = $currentIndex"
+        )
+
+        Log.d(
+            "FeaturedVideo",
+            "Title = ${currentVideo.title}"
+        )
+
+        Log.d(
+            "FeaturedVideo",
+            "URL = $videoUrl"
+        )
+
+        if (videoUrl.isNullOrBlank()) {
+
+            Log.e(
+                "FeaturedVideo",
+                "Promo URL is EMPTY"
+            )
+
+            return@LaunchedEffect
         }
-    }*/
+
+        /*
+         * Show thumbnail first.
+         */
+        delay(BANNER_VIDEO_DELAY_MS)
+
+        /*
+         * Start loading new video.
+         */
+        isBuffering = true
+
+        exoPlayer.volume = 0f
+
+        exoPlayer.repeatMode =
+            Player.REPEAT_MODE_ONE
+
+        exoPlayer.setMediaItem(
+            MediaItem.fromUri(videoUrl)
+        )
+
+        exoPlayer.prepare()
+
+        exoPlayer.playWhenReady = true
+
+        Log.d(
+            "FeaturedVideo",
+            "New video playback started"
+        )
+    }
 
     /*
      * --------------------------------
-     * BANNER CAROUSEL
+     * UI
      * --------------------------------
      */
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -955,8 +1107,7 @@ private fun FeaturedVideoSection(
                 top = 12.dp,
                 bottom = 24.dp
             )
-    )
-    {
+    ) {
 
         Box(
             modifier = Modifier
@@ -965,10 +1116,15 @@ private fun FeaturedVideoSection(
                 .clip(
                     RoundedCornerShape(24.dp)
                 )
-        )
-        {
+        ) {
 
-            val pageCount = Int.MAX_VALUE
+            /*
+             * --------------------------------
+             * PAGER
+             *
+             * Thumbnail + text only
+             * --------------------------------
+             */
 
             HorizontalPager(
                 state = pagerState,
@@ -980,80 +1136,46 @@ private fun FeaturedVideoSection(
                 pageSize = PageSize.Fill
             ) { page ->
 
-                if (videos.isEmpty()) {
-                    return@HorizontalPager
-                }
-
-                val actualPage = page % videos.size
-                val video = videos[actualPage]
+                val video =
+                    videos[page % videos.size]
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(
+                            RoundedCornerShape(20.dp)
+                        )
                 ) {
 
                     /*
-                     * --------------------------------
-                     * VIDEO PLAYER
-                     * --------------------------------
+                     * Thumbnail
                      */
-                    // Thumbnail FIRST
+
                     AsyncImage(
-                        model = video.thumbnailUrl ?: video.thumbnail,
-                        contentDescription = video.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                        model =
+                            video.thumbnailUrl
+                                ?: video.thumbnail,
 
-// Video SECOND
-                    AndroidView(
-                        factory = { context ->
-                            PlayerView(context).apply {
-                                useController = false
-                                resizeMode =
-                                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                player = exoPlayer
-                            }
-                        },
-                        update = { playerView ->
+                        contentDescription =
+                            video.title,
 
-                            if (pagerState.currentPage == page) {
-                                playerView.player = exoPlayer
-                            } else {
-                                playerView.player = null
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
+                        contentScale =
+                            ContentScale.Crop,
+
+                        modifier =
+                            Modifier.fillMaxSize()
                     )
 
                     /*
-                     * --------------------------------
-                     * THUMBNAIL BACKGROUND
-                     * --------------------------------
-                     *
-                     * This stays underneath the video.
-                     * It is useful while ExoPlayer is preparing.
+                     * Gradient
                      */
-                    AsyncImage(
-                        model = video.thumbnailUrl
-                            ?: video.thumbnail,
-                        contentDescription = video.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
 
-                    /*
-                     * --------------------------------
-                     * DARK GRADIENT
-                     * --------------------------------
-                     */
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
                                 Brush.verticalGradient(
-                                    colors = listOf(
+                                    listOf(
                                         Color.Transparent,
                                         Color(0x99000000),
                                         Color(0xFF000000)
@@ -1063,57 +1185,63 @@ private fun FeaturedVideoSection(
                     )
 
                     /*
-                     * --------------------------------
-                     * FEATURED CONTENT
-                     * --------------------------------
+                     * Text + buttons
                      */
+
                     Column(
                         modifier = Modifier
-                            .align(Alignment.BottomStart)
+                            .align(
+                                Alignment.BottomStart
+                            )
                             .padding(24.dp)
                     ) {
 
                         Text(
-                            text = "DEALSHOT ORIGINAL",
-                            color = Color(0xFFFF8A00),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 3.sp
+                            text =
+                                "DEALSHOT ORIGINAL",
+
+                            color =
+                                Color(0xFFFF8A00),
+
+                            fontSize =
+                                14.sp,
+
+                            fontWeight =
+                                FontWeight.Bold,
+
+                            letterSpacing =
+                                3.sp
                         )
 
                         Spacer(
-                            modifier = Modifier.height(5.dp)
+                            modifier =
+                                Modifier.height(5.dp)
                         )
 
                         video.title?.let { title ->
 
                             Text(
                                 text = title,
-                                color = Color.White,
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Bold,
+
+                                color =
+                                    Color.White,
+
+                                fontSize =
+                                    28.sp,
+
+                                fontWeight =
+                                    FontWeight.Bold,
+
                                 maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+
+                                overflow =
+                                    TextOverflow.Ellipsis
                             )
                         }
 
- /*                       Spacer(
-                            modifier = Modifier.height(10.dp)
-                        )
-
-                        video.description?.let { description ->
-
-                            Text(
-                                text = description,
-                                color = Color.LightGray,
-                                fontSize = 14.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }*/
-
                         Spacer(
-                            modifier = Modifier.height(7.dp)
+                            modifier =
+                                Modifier.height(7.dp)
                         )
 
                         Row(
@@ -1125,27 +1253,39 @@ private fun FeaturedVideoSection(
                                 onClick = {
                                     onWatchNow(video)
                                 },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White,
-                                    contentColor = Color.Black
-                                ),
-                                shape = RoundedCornerShape(14.dp)
+
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor =
+                                            Color.White,
+
+                                        contentColor =
+                                            Color.Black
+                                    ),
+
+                                shape =
+                                    RoundedCornerShape(14.dp)
                             ) {
 
                                 Icon(
                                     imageVector =
                                         Icons.Default.PlayArrow,
+
                                     contentDescription =
                                         "Watch Now"
                                 )
 
                                 Spacer(
-                                    modifier = Modifier.width(6.dp)
+                                    modifier =
+                                        Modifier.width(6.dp)
                                 )
 
                                 Text(
-                                    text = "Watch Now",
-                                    fontWeight = FontWeight.Bold
+                                    text =
+                                        "Watch Now",
+
+                                    fontWeight =
+                                        FontWeight.Bold
                                 )
                             }
 
@@ -1153,27 +1293,36 @@ private fun FeaturedVideoSection(
                                 onClick = {
                                     onMyList(video)
                                 },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor =
-                                        Color(0xCC252525),
-                                    contentColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(14.dp)
+
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor =
+                                            Color(0xCC252525),
+
+                                        contentColor =
+                                            Color.White
+                                    ),
+
+                                shape =
+                                    RoundedCornerShape(14.dp)
                             ) {
 
                                 Icon(
                                     imageVector =
                                         Icons.Default.Add,
+
                                     contentDescription =
                                         "My List"
                                 )
 
                                 Spacer(
-                                    modifier = Modifier.width(6.dp)
+                                    modifier =
+                                        Modifier.width(6.dp)
                                 )
 
                                 Text(
-                                    text = "My List"
+                                    text =
+                                        "My List"
                                 )
                             }
                         }
@@ -1183,17 +1332,159 @@ private fun FeaturedVideoSection(
 
             /*
              * --------------------------------
+             * ONE PLAYER VIEW
+             *
+             * IMPORTANT:
+             * This is outside HorizontalPager.
+             * Only ONE PlayerView exists.
+             * --------------------------------
+             */
+
+            if (!hasPlayerError) {
+
+                AndroidView(
+                    factory = { context ->
+
+                        (
+                                LayoutInflater
+                                    .from(context)
+                                    .inflate(
+                                        R.layout.view_banner_player,
+                                        null
+                                    ) as PlayerView
+                                ).apply {
+
+                                player =
+                                    exoPlayer
+                            }
+                    },
+
+                    update = { playerView ->
+
+                        if (
+                            playerView.player !=
+                            exoPlayer
+                        ) {
+
+                            playerView.player =
+                                exoPlayer
+                        }
+                    },
+
+                    onRelease = { playerView ->
+
+                        /*
+                         * Only detach when this
+                         * single PlayerView is
+                         * actually destroyed.
+                         */
+
+                        playerView.player = null
+                    },
+
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(
+                            RoundedCornerShape(20.dp)
+                        )
+                        .graphicsLayer {
+
+                            /*
+                             * Do not display old
+                             * video frame while
+                             * new video is loading.
+                             */
+
+                            alpha =
+                                if (isVideoReady) {
+                                    1f
+                                } else {
+                                    0f
+                                }
+                        }
+                )
+            }
+
+            /*
+             * --------------------------------
+             * BUFFERING
+             * --------------------------------
+             */
+
+            if (
+                isBuffering &&
+                !isVideoReady &&
+                !hasPlayerError
+            ) {
+
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .size(24.dp),
+
+                    color =
+                        Color.White,
+
+                    strokeWidth =
+                        2.dp
+                )
+            }
+
+            /*
+             * --------------------------------
+             * ERROR
+             * --------------------------------
+             */
+
+            if (hasPlayerError) {
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Color.Black.copy(
+                                alpha = 0.35f
+                            )
+                        ),
+
+                    contentAlignment =
+                        Alignment.Center
+                ) {
+
+                    Text(
+                        text =
+                            "Preview unavailable",
+
+                        color =
+                            Color.White,
+
+                        fontSize =
+                            14.sp,
+
+                        fontWeight =
+                            FontWeight.Medium
+                    )
+                }
+            }
+
+            /*
+             * --------------------------------
              * PAGE INDICATORS
              * --------------------------------
              */
-            val currentIndicator =
-                pagerState.currentPage % videos.size
 
             Row(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    .align(
+                        Alignment.BottomCenter
+                    )
+                    .padding(
+                        bottom = 8.dp
+                    ),
+
+                horizontalArrangement =
+                    Arrangement.spacedBy(6.dp)
             ) {
 
                 videos.forEachIndexed { index, _ ->
@@ -1201,21 +1492,32 @@ private fun FeaturedVideoSection(
                     Box(
                         modifier = Modifier
                             .size(
-                                width = if (index == currentIndicator) {
-                                    18.dp
-                                } else {
+                                width =
+                                    if (
+                                        index ==
+                                        currentIndex
+                                    ) {
+                                        18.dp
+                                    } else {
+                                        6.dp
+                                    },
+
+                                height =
                                     6.dp
-                                },
-                                height = 6.dp
                             )
                             .clip(
                                 RoundedCornerShape(50)
                             )
                             .background(
-                                if (index == currentIndicator) {
+                                if (
+                                    index ==
+                                    currentIndex
+                                ) {
                                     Color(0xFFFF8A00)
                                 } else {
-                                    Color.White.copy(alpha = 0.5f)
+                                    Color.White.copy(
+                                        alpha = 0.5f
+                                    )
                                 }
                             )
                     )
@@ -1223,92 +1525,9 @@ private fun FeaturedVideoSection(
             }
         }
     }
-
 }
-@Composable
-private fun CategoryContent(
-    selectedCategory: String,
-    categoryVideos: List<VideoDto>,
-    sharedExoPlayer: ExoPlayer,
-    activeVideoUrl: String?,
-    onActiveVideoUrlChanged: (String?) -> Unit,
-    onIntent: (HomeIntent) -> Unit
-) {
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
-        contentPadding = PaddingValues(
-            start = 5.dp,
-            end = 5.dp,
-            bottom = 24.dp
-        )
-    ) {
 
-        /*
-         * Category Featured Banner
-         */
-        item {
-
-            if (categoryVideos.isNotEmpty()) {
-
-                FeaturedVideoSection(
-                    videos = categoryVideos,
-                    exoPlayer = sharedExoPlayer,
-
-                    onWatchNow = { video ->
-                        onIntent(
-                            HomeIntent.VideoClicked(video)
-                        )
-                    },
-
-                    onMyList = {
-                        onIntent(
-                            HomeIntent.MyListClicked
-                        )
-                    }
-                )
-            }
-        }
-
-        /*
-         * Category Video Row
-         */
-        item {
-
-            if (categoryVideos.isNotEmpty()) {
-
-                VideoCategorySection(
-                    title = selectedCategory,
-                    videos = categoryVideos,
-                    sharedExoPlayer = sharedExoPlayer,
-                    activeVideoUrl = activeVideoUrl,
-
-                    onPlayVideo = { video ->
-
-                        playVideo(
-                            video = video,
-                            activeVideoUrl = activeVideoUrl,
-                            onActiveUrlChanged = onActiveVideoUrlChanged,
-                            player = sharedExoPlayer
-                        )
-                    },
-                    onSeeAll = { categoryName ->
-                        onIntent(
-                            HomeIntent.SeeAllClicked(categoryName)
-                        )
-                    },
-                    onVideoClick = { video ->
-
-                        onIntent(
-                            HomeIntent.VideoClicked(video)
-                        )
-                    }
-                )
-            }
-        }
-    }
-}
 
 
 
