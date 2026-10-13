@@ -1,26 +1,32 @@
 package com.dealshot.app.presentation.shared.home
 
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
+import com.dealshot.app.core.error.AppErrorHandler
 import com.dealshot.app.data.preferences.UserPreferences
 import com.dealshot.app.data.remote.dto.VideoDto
-import com.dealshot.app.data.video.Video
 import com.dealshot.app.data.remote.repository.VideoRepository
+import com.dealshot.app.data.remote.repository.SavedVideosRepository
+import com.dealshot.app.data.remote.repository.SavedVideoCollection
+import retrofit2.HttpException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 class HomeViewModel(
     private val userPreferences: UserPreferences,
-    private val videoRepository: VideoRepository
+    private val videoRepository: VideoRepository,
+    private val savedVideosRepository: SavedVideosRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HomeState())
+    private val _uiState = MutableStateFlow(HomeState(    ))
     val uiState = _uiState.asStateFlow()
 
     private val _effect = Channel<HomeEffect>(
@@ -31,6 +37,10 @@ class HomeViewModel(
 
     init {
         onIntent(HomeIntent.LoadHome)
+        onIntent(HomeIntent.LoadCategories)
+        viewModelScope.launch {
+            loadMyWatchLaterIds()
+        }
     }
 
     fun onIntent(intent: HomeIntent) {
@@ -50,6 +60,9 @@ class HomeViewModel(
 //                _uiState.value.featuredVideo?.let { video ->
 //                    openPlayer(video)
 //                }
+            }
+            is HomeIntent.LoadCategories -> {
+                loadCategories()
             }
 
             HomeIntent.ProfileClicked -> {
@@ -75,14 +88,12 @@ class HomeViewModel(
             is HomeIntent.SectionClicked -> {
                 loadSection(intent.section)
             }
+            is HomeIntent.RefreshMyWatchLater -> {
+                viewModelScope.launch { loadMyWatchLaterIds() }
+            }
 
             HomeIntent.LogoutClicked -> {
-                viewModelScope.launch {
-                    userPreferences.clearUser()
-                    _effect.send(
-                        HomeEffect.NavigateToLogin
-                    )
-                }
+                logout()
             }
 
             HomeIntent.ClearError -> {
@@ -95,54 +106,13 @@ class HomeViewModel(
                 sendEffect(HomeEffect.OpenLikedVideos)
             }
             is HomeIntent.MyListClicked -> {
-                sendEffect(HomeEffect.OpenLikedVideos)
+                sendEffect(HomeEffect.OpenMyList)
+            }
+            is HomeIntent.ToggleMyList -> {
+                toggleMyList(intent.video)
             }
         }
     }
-
-   /* private fun loadSection(section: HomeSection) {
-
-        val allVideos = _uiState.value.allVideos
-
-        val sectionVideos  = when (section) {
-
-            HomeSection.HOME ->
-                allVideos
-
-            HomeSection.EVENTS ->
-                allVideos.filter {
-                    it.category.equals("Events", ignoreCase = true)
-                }
-
-            HomeSection.INTERNATIONAL ->
-                allVideos.filter {
-                    it.category.equals("International", ignoreCase = true)
-                }
-
-            HomeSection.INSPIRATION ->
-                allVideos.filter {
-                    it.category.equals("Inspiration", ignoreCase = true)
-                }
-
-            HomeSection.BANNER ->
-                allVideos.filter {
-                    it.category.equals("Banner", ignoreCase = true)
-                }
-
-            HomeSection.PREMIUM ->
-                allVideos.filter {
-                    it.isPremium
-                }
-        }
-
-        _uiState.update {
-            it.copy(
-                selectedSection = section,
-                isLoading = false,
-                error = null
-            )
-        }
-    }*/
 
     private fun loadSection(section: String) {
 
@@ -174,6 +144,41 @@ class HomeViewModel(
         }
     }
 
+    private fun buildSections(
+        categories: List<VideoCategory>,
+        allVideos: List<VideoDto>
+    ): List<String> {
+        return buildList {
+            add("Home")
+
+            addAll(
+                categories
+                    .map { it.name.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sorted()
+            )
+
+            // Uncomment if you want Premium to appear only when premium videos exist.
+            // if (allVideos.any { it.isPremium }) {
+            //     add("Premium")
+            // }
+        }.distinct()
+    }
+
+    private suspend fun loadMyWatchLaterIds() {
+        try {
+            val ids = savedVideosRepository
+                .getVideos(SavedVideoCollection.WATCH_LATER)
+                .map { it.id }
+                .toSet()
+            _uiState.update { it.copy(myWatchLaterVideoIds = ids) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Keep the Home screen usable even if this list fails to load
+        }
+    }
     @OptIn(UnstableApi::class)
     private fun loadHome() {
         viewModelScope.launch {
@@ -190,12 +195,12 @@ class HomeViewModel(
                 try {
 
                     val videos = videoRepository.getVideos()
-
-                    val featuredVideo = videos.firstOrNull { it.featured }
-
                     val bannerVideos = videos.filter {
                         it.category.equals("Banner", ignoreCase = true)
                     }
+                   /* val featuredVideo = videos.firstOrNull { it.featured }
+
+
 
                     val inspirationVideos = videos.filter {
                         it.category.equals("Inspiration", ignoreCase = true)
@@ -211,7 +216,7 @@ class HomeViewModel(
 
                     val premiumVideos = videos.filter {
                         it.isPremium
-                    }
+                    }*/
 
                     val premium =
                         videos.filter {
@@ -227,6 +232,13 @@ class HomeViewModel(
                     val popularVideos =
                         videos.takeLast(6)
 
+                    val savedVideos = try {
+                        savedVideosRepository.getVideos(SavedVideoCollection.WATCH_LATER)
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                    val savedIds = savedVideos.map { it.id }.toSet()
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -236,12 +248,6 @@ class HomeViewModel(
 
                             // Category-specific videos
                             bannerVideos = bannerVideos,
-                            inspirationVideos = inspirationVideos,
-                            internationalVideos = internationalVideos,
-                            eventsVideos = eventsVideos,
-                            premiumVideos = premiumVideos,
-
-                            featuredVideo = featuredVideo,
 
                             continueWatching = emptyList(),
                             latestReleases = latestReleases,
@@ -251,21 +257,182 @@ class HomeViewModel(
 
                             likedVideos = emptyList(),
                             myListVideos = emptyList(),
+                            myWatchLaterVideoIds = savedIds,
 
                             error = null
                         )
                     }
 
-                } catch (exception: Exception) {
-
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
                     _uiState.update {
-
                         it.copy(
                             isLoading = false,
-                            error = exception.message
-                                ?: "Something went wrong"
+                            error = AppErrorHandler.getUserMessage(e)
                         )
                     }
+                }
+            }
+        }
+    }
+
+  /*  private fun toggleMyList(video: VideoDto) {
+        val videoId = video.id
+        val current = _uiState.value
+
+        if (videoId in current.updatingMyWatchLaterVideoIds) return
+        val isSaved = videoId in state.myWatchLaterVideoIds
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    updatingMyWatchLaterVideoIds = it.updatingMyWatchLaterVideoIds + videoId,
+                    error = null
+                )
+            }
+
+            try {
+                val isSaved = videoId in _uiState.value.myWatchLaterVideoIds
+
+                if (isSaved) {
+                    savedVideosRepository.removeVideo(
+                        SavedVideoCollection.WATCH_LATER,
+                        videoId
+                    )
+                } else {
+                    savedVideosRepository.addVideo(
+                        SavedVideoCollection.WATCH_LATER,
+                        videoId
+                    )
+                }
+
+                _uiState.update { state ->
+                    val newSavedIds = if (isSaved) {
+                        state.myWatchLaterVideoIds - videoId
+                    } else {
+                        state.myWatchLaterVideoIds + videoId
+                    }
+
+                    state.copy(
+                        myWatchLaterVideoIds = newSavedIds,
+                        updatingMyWatchLaterVideoIds = state.updatingMyWatchLaterVideoIds - videoId
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val statusCode = (e as? HttpException)?.code()
+                if (statusCode == 409) {
+                    _uiState.update { state ->
+                        state.copy(
+                            myWatchLaterVideoIds = state.myWatchLaterVideoIds + videoId,
+                            updatingMyWatchLaterVideoIds = state.updatingMyWatchLaterVideoIds - videoId,
+                            error = null
+                        )
+                    }
+                } else if (statusCode == 404) {
+                    _uiState.update { state ->
+                        state.copy(
+                            myWatchLaterVideoIds = state.myWatchLaterVideoIds - videoId,
+                            updatingMyWatchLaterVideoIds = state.updatingMyWatchLaterVideoIds - videoId,
+                            error = null
+                        )
+                    }
+                } else {
+                    _uiState.update { state ->
+                        state.copy(
+                            updatingMyWatchLaterVideoIds = state.updatingMyWatchLaterVideoIds - videoId,
+                            error = AppErrorHandler.getUserMessage(e)
+                        )
+                    }
+                }
+            }
+        }
+    }*/
+
+    private fun toggleMyList(video: VideoDto) {
+        val videoId = video.id
+        val state = _uiState.value
+
+        // Ignore taps while this video's request is still running
+        if (videoId in state.updatingMyWatchLaterVideoIds) return
+
+        val isSaved = videoId in state.myWatchLaterVideoIds
+
+        _uiState.update {
+            it.copy(updatingMyWatchLaterVideoIds = it.updatingMyWatchLaterVideoIds + videoId)
+        }
+
+        viewModelScope.launch {
+            try {
+                /*if (isSaved) {
+                    savedVideosRepository.removeVideo(SavedVideoCollection.WATCH_LATER, videoId)
+                } else {*/
+                    savedVideosRepository.addVideo(SavedVideoCollection.WATCH_LATER, videoId)
+//                }
+
+                _uiState.update {
+                    it.copy(
+                        myWatchLaterVideoIds = if (isSaved) {
+                            it.myWatchLaterVideoIds - videoId
+                        } else {
+                            it.myWatchLaterVideoIds + videoId
+                        }
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message ?: "Unable to update My List.") }
+            } finally {
+                _uiState.update {
+                    it.copy(updatingMyWatchLaterVideoIds = it.updatingMyWatchLaterVideoIds - videoId)
+                }
+            }
+        }
+    }
+
+    private fun loadCategories() {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(isCategoriesLoading = true)
+            }
+
+            try {
+                val response = videoRepository.getVideoCategories()
+
+                val categories = response
+                    .mapNotNull { category ->
+                        category.name.trim()
+                            .takeIf { name -> name.isNotBlank() }
+                            ?.let { name ->
+                                VideoCategory(
+                                    name = name,
+                                    count = category.count
+                                )
+                            }
+                    }
+                    .distinctBy { it.name.lowercase() }
+                    .sortedBy { it.name }
+
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        categories = categories,
+                        sections = buildSections(
+                            categories = categories,
+                            allVideos = currentState.allVideos
+                        ),
+                        isCategoriesLoading = false
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        isCategoriesLoading = false,
+                        error = AppErrorHandler.getUserMessage(e)
+                    )
                 }
             }
         }
@@ -289,90 +456,33 @@ class HomeViewModel(
         }
     }
 
-    @OptIn(UnstableApi::class)
-    private fun createDemoVideos(): List<Video> {
-        return listOf(
-            Video(
-                id = "1",
-                title = "The Color Journey",
-                description = "A one-minute stream demo",
-                duration = "1 min",
-                thumbnail = "https://dealshot-video-bucket.s3.ap-south-2.amazonaws.com/thumbnails/jewelry_thumbnail.jpg",
-                url = "https://d2mt5pdqyed9m3.cloudfront.net/videos/kalyan_jewelry.mp4",
-                "premium"
-            ),
 
-            Video(
-                id = "2",
-                title = "The Color Journey",
-                description = "A one-minute stream demo",
-                duration = "1 min",
-                thumbnail = "https://dealshot-video-bucket.s3.ap-south-2.amazonaws.com/thumbnails/jewelry_thumbnail.jpg",
-                url = "https://d2mt5pdqyed9m3.cloudfront.net/videos/jewelry.mp4",
-                "premium"
-            ),
+    private fun logout() {
+        viewModelScope.launch {
+            try {
+                userPreferences.clearUser()
+                _effect.send(HomeEffect.NavigateToLogin)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                handleError(e)
+            }
+        }
+    }
 
-            Video(
-                id = "3",
-                title = "Chuttamalle",
-                description = "CloudFront streaming demo",
-                duration = "1 min",
-                thumbnail = "https://dealshot-video-bucket.s3.ap-south-2.amazonaws.com/thumbnails/jewelry_thumbnail.jpg",
-                url = "https://d2mt5pdqyed9m3.cloudfront.net/videos/gold-video.mp4",
-                "sports"
-            ),
+    /**
+     * Single place that turns any exception into a user-friendly message.
+     */
+    private fun handleError(throwable: Throwable) {
+        if (throwable is CancellationException) {
+            throw throwable
+        }
 
-            Video(
-                id = "4",
-                title = "Video 4",
-                description = "StreamBox demo video",
-                duration = "1 min",
-                thumbnail = "https://dealshot-video-bucket.s3.ap-south-2.amazonaws.com/thumbnails/Hightech farming.png",
-                url = "https://d2mt5pdqyed9m3.cloudfront.net/videos/Why the Future of Farming is in Cities - The Big Money in Vertical Farming.mp4",
-                "home"
-            ),
-
-            Video(
-                id = "5",
-                title = "Video 5",
-                description = "StreamBox demo video",
-                duration = "1 min",
-                thumbnail = "https://dealshot-video-bucket.s3.ap-south-2.amazonaws.com/thumbnails/MIG-29s.png",
-                url = "https://d2mt5pdqyed9m3.cloudfront.net/videos/When MiG-29s Ambushed F-15 Eagles.mp4",
-                "home"
-            ),
-
-            Video(
-                id = "6",
-                title = "Video 6",
-                description = "StreamBox demo video",
-                duration = "1 min",
-                thumbnail = "https://dealshot-video-bucket.s3.ap-south-2.amazonaws.com/thumbnails/Monaco.png",
-                url = "https://d2mt5pdqyed9m3.cloudfront.net/videos/Monaco  Where the Rich Come to Live 4k video_1440p.mp4",
-
-                "home"
-            ),
-
-            Video(
-                id =" 7",
-                title = "Video 7",
-                description = "StreamBox demo video",
-                duration = "1 min",
-                thumbnail = "https://dealshot-video-bucket.s3.ap-south-2.amazonaws.com/thumbnails/GOLD.png",
-                url = "https://d2mt5pdqyed9m3.cloudfront.net/videos/Inside the 24K Gold Factory From Raw Ore to Pure Gold Bars.mp4",
-                "home"
-            ),
-
-            Video(
-                id = "8",
-                title = "Video 8",
-                description = "StreamBox demo video",
-                duration = "1 min",
-                thumbnail = "https://dealshot-video-bucket.s3.ap-south-2.amazonaws.com/thumbnails/GOLD.png",
-                url = "https://d2mt5pdqyed9m3.cloudfront.net/videos/Inside the 24K Gold Factory From Raw Ore to Pure Gold Bars.mp4",
-
-                "movies"
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                error = AppErrorHandler.getUserMessage(throwable)
             )
-        )
+        }
     }
 }

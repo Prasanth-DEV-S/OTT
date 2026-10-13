@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-
 }
 
 android {
@@ -23,8 +22,22 @@ android {
             "String",
             "API_BASE_URL",
             "\"https://stg-api.dealshot.in/api/\""
-
         )
+    }
+
+    flavorDimensions.add("deviceType")
+
+    // Configure the variants
+    productFlavors {
+        create("mobile") {
+            dimension = "deviceType"
+            manifestPlaceholders["activityLauncherCategory"] = "android.intent.category.LAUNCHER"
+        }
+        create("tv") {
+            dimension = "deviceType"
+            applicationIdSuffix = ".tv"
+            manifestPlaceholders["activityLauncherCategory"] = "android.intent.category.LEANBACK_LAUNCHER"
+        }
     }
 
     buildTypes {
@@ -44,10 +57,8 @@ android {
         compose = true
         buildConfig = true
     }
-
 }
 
-// FIX 1: Correct Modern Kotlin 2.0+ DSL syntax block for resolving ExperimentalMaterial3Api globally
 kotlin {
     compilerOptions {
         freeCompilerArgs.add("-opt-in=androidx.compose.material3.ExperimentalMaterial3Api")
@@ -55,6 +66,10 @@ kotlin {
 }
 
 dependencies {
+    implementation(libs.androidx.junit.ktx)
+    implementation(libs.androidx.ui.test.junit4)
+    androidTestImplementation(platform("androidx.compose:compose-bom:<your-bom-version>"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.camera.core)
@@ -67,20 +82,33 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation("androidx.tv:tv-foundation:1.0.0")
-    implementation("androidx.tv:tv-material:1.0.0")
 
     // Extended Vector Asset UI Elements
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 
     // Media3 Ecosystem Implementations
-    implementation("androidx.media3:media3-ui:1.5.1")
-    implementation("androidx.compose.material3:material3:1.3.0")
+    implementation("androidx.media3:media3-exoplayer:1.8.0")
+    implementation("androidx.media3:media3-ui:1.8.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.8.0")
 
-    // Custom UI Inputs Layout Tools
-    implementation("com.github.mukeshsolanki.android-otpview-pinview:otpview-compose:3.1.0")
     implementation(libs.volley)
+
+    // Navigation and DataStore
+    implementation("androidx.navigation:navigation-compose:2.9.6")
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
+
+    // Retrofit + OkHttp
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Kotlin Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
+    implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-video:2.7.0")
+    implementation("com.github.bumptech.glide:compose:1.0.0-beta01")
 
     // Test Automation Environments Structure
     testImplementation(libs.junit)
@@ -91,38 +119,15 @@ dependencies {
 
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    implementation("androidx.media3:media3-exoplayer:1.8.0")
-    implementation("androidx.media3:media3-ui:1.8.0")
 
-    implementation(platform("androidx.compose:compose-bom:2025.01.01"))
+    // Variant-specific dependencies
+    "mobileImplementation"("androidx.constraintlayout:constraintlayout:2.1.4")
+    "mobileImplementation"("com.github.mukeshsolanki.android-otpview-pinview:otpview-compose:3.1.0")
 
-    implementation("androidx.activity:activity-compose:1.10.1")
-
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-
-    implementation("androidx.core:core-ktx:1.16.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.2")
-
-    implementation("androidx.compose.material:material-icons-extended")
-
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
-
-    implementation("com.github.mukeshsolanki.android-otpview-pinview:otpview-compose:3.1.0")
-    implementation("androidx.navigation:navigation-compose:2.9.6")
-    implementation("androidx.datastore:datastore-preferences:1.1.7")
-    // Retrofit + OkHttp
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-// Kotlin Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
-    implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")
-    implementation("androidx.core:core-splashscreen:1.0.1")
-    implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("io.coil-kt:coil-video:2.7.0")
-    implementation("com.github.bumptech.glide:compose:1.0.0-beta01")
-    implementation("androidx.media3:media3-exoplayer-hls:1.8.0")
+    "tvImplementation"("androidx.tv:tv-foundation:1.0.0")
+    "tvImplementation"("androidx.tv:tv-material:1.0.0")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.09.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

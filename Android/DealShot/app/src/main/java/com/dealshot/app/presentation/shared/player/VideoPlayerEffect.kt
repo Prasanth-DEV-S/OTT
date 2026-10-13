@@ -6,3 +6,9 @@ sealed interface VideoPlayerEffect {
 
     data object OpenSubscription : VideoPlayerEffect
 }
+
+sealed interface WatchProgressEffect {
+    data class ProgressLoaded(
+        val positionSeconds: Int
+    ) : WatchProgressEffect
+}

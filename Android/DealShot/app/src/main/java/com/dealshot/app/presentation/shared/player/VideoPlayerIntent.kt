@@ -3,11 +3,14 @@ package com.dealshot.app.presentation.shared.player
 sealed interface VideoPlayerIntent {
 
     data class Initialize(
+        val videoId: String,
         val title: String,
         val description: String,
         val videoUrl: String,
         val isPremiumUser: Boolean,
-        val position: Long
+        val position: Long,
+        val error: String? = null,
+        val message : String? = null
     ) : VideoPlayerIntent
 
     data object BackClicked : VideoPlayerIntent
@@ -26,10 +29,15 @@ sealed interface VideoPlayerIntent {
 
     data object PlaybackReady : VideoPlayerIntent
 
+    data object SaveProgressRequested : VideoPlayerIntent
+
     data class PlaybackStateChanged(
         val isPlaying: Boolean
     ) : VideoPlayerIntent
 
+    data class PlaybackError(
+        val error: Throwable
+    ) : VideoPlayerIntent
     data class PlaybackProgressChanged(
         val currentPosition: Long,
         val duration: Long
@@ -40,4 +48,16 @@ sealed interface VideoPlayerIntent {
     ) : VideoPlayerIntent
 
     data object SliderChangeFinished : VideoPlayerIntent
+}
+
+sealed interface WatchProgressIntent {
+    data class LoadProgress(val videoId: String) : WatchProgressIntent
+
+    data class SaveProgress(
+        val videoId: String,
+        val positionSeconds: Int,
+        val durationSeconds: Int
+    ) : WatchProgressIntent
+
+    data object ClearError : WatchProgressIntent
 }

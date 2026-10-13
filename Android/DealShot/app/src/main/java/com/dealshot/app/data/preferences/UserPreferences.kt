@@ -1,8 +1,10 @@
 package com.dealshot.app.data.preferences
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -37,6 +39,39 @@ class UserPreferences(
 
         private val LAST_ACTIVITY =
             longPreferencesKey("last_activity")
+
+        private val TOKEN = stringPreferencesKey("token")
+        private val USER_NAME = stringPreferencesKey("user_name")
+        private val MOBILE = stringPreferencesKey("mobile")
+        private val EMAIL = stringPreferencesKey("email")
+        private val ROLE = stringPreferencesKey("role")
+
+        private val IS_MOBILE_VERIFIED =
+            booleanPreferencesKey("is_mobile_verified")
+
+        private val MAX_PROFILES =
+            intPreferencesKey("max_profiles")
+
+        private val SUBSCRIPTION_PLAN_ID =
+            stringPreferencesKey("subscription_plan_id")
+
+        private val SUBSCRIPTION_START_DATE =
+            stringPreferencesKey("subscription_start_date")
+
+        private val SUBSCRIPTION_END_DATE =
+            stringPreferencesKey("subscription_end_date")
+
+        private val SUBSCRIPTION_IS_ACTIVE =
+            booleanPreferencesKey("subscription_is_active")
+
+        private val SUBSCRIPTION_STATUS =
+            stringPreferencesKey("subscription_status")
+
+        private val LAST_LOGIN_AT =
+            stringPreferencesKey("last_login_at")
+
+        private val MAX_DEVICES =
+            intPreferencesKey("max_devices")
     }
 
     /**
@@ -45,20 +80,41 @@ class UserPreferences(
     suspend fun saveLoginSession(
         token: String,
         userId: String,
+        name: String,
         mobile: String,
+        email: String,
         role: String,
-        isNewUser: Boolean
+        isMobileVerified: Boolean,
+        isNewUser: Boolean,
+        maxProfiles: Int,
+        maxDevices: Int,
+        subscriptionPlanId: String?,
+        subscriptionStartDate: String?,
+        subscriptionEndDate: String?,
+        subscriptionIsActive: Boolean,
+        subscriptionStatus: String,
+        lastLoginAt: String
     ) {
-        val encryptedToken =
-            secureTokenStorage.encrypt(token)
         context.dataStore.edit { preferences ->
-
-            preferences[AUTH_TOKEN] = encryptedToken
+            preferences[TOKEN] = token
             preferences[USER_ID] = userId
-            preferences[MOBILE_NUMBER] = mobile
-            preferences[USER_ROLE] = role
+            preferences[USER_NAME] = name
+            preferences[MOBILE] = mobile
+            preferences[EMAIL] = email
+            preferences[ROLE] = role
+            preferences[IS_MOBILE_VERIFIED] = isMobileVerified
             preferences[IS_NEW_USER] = isNewUser
+            preferences[MAX_PROFILES] = maxProfiles
+            preferences[MAX_DEVICES] = maxDevices
             preferences[LAST_ACTIVITY] = System.currentTimeMillis()
+
+            subscriptionPlanId?.let { preferences[SUBSCRIPTION_PLAN_ID] = it }
+            subscriptionStartDate?.let { preferences[SUBSCRIPTION_START_DATE] = it }
+            subscriptionEndDate?.let { preferences[SUBSCRIPTION_END_DATE] = it }
+
+            preferences[SUBSCRIPTION_IS_ACTIVE] = subscriptionIsActive
+            preferences[SUBSCRIPTION_STATUS] = subscriptionStatus
+            preferences[LAST_LOGIN_AT] = lastLoginAt
         }
     }
 
@@ -73,13 +129,7 @@ class UserPreferences(
      */
     val authToken: Flow<String?> =
         context.dataStore.data.map { preferences ->
-
-            val encryptedToken =
-                preferences[AUTH_TOKEN]
-
-            encryptedToken?.let {
-                secureTokenStorage.decrypt(it)
-            }
+            preferences[TOKEN]
         }
 
     /**
@@ -95,7 +145,15 @@ class UserPreferences(
      */
     val mobileNumber: Flow<String?> =
         context.dataStore.data.map { preferences ->
-            preferences[MOBILE_NUMBER]
+            preferences[MOBILE]
+        }
+
+    /**
+     * Logged-in email.
+     */
+    val email: Flow<String?> =
+        context.dataStore.data.map { preferences ->
+            preferences[EMAIL]
         }
 
     /**
@@ -133,15 +191,35 @@ class UserPreferences(
     /**
      * Clear authenticated user data.
      */
+
     suspend fun clearUser() {
         context.dataStore.edit { preferences ->
-
             preferences.remove(AUTH_TOKEN)
+            preferences.remove(TOKEN)
+
             preferences.remove(USER_ID)
             preferences.remove(MOBILE_NUMBER)
             preferences.remove(USER_ROLE)
             preferences.remove(IS_NEW_USER)
             preferences.remove(LAST_ACTIVITY)
+
+            preferences.remove(USER_NAME)
+            preferences.remove(MOBILE)
+            preferences.remove(EMAIL)
+            preferences.remove(ROLE)
+            preferences.remove(IS_MOBILE_VERIFIED)
+
+            preferences.remove(MAX_PROFILES)
+            preferences.remove(MAX_DEVICES)
+
+            preferences.remove(SUBSCRIPTION_PLAN_ID)
+            preferences.remove(SUBSCRIPTION_START_DATE)
+            preferences.remove(SUBSCRIPTION_END_DATE)
+            preferences.remove(SUBSCRIPTION_IS_ACTIVE)
+            preferences.remove(SUBSCRIPTION_STATUS)
+
+            preferences.remove(LAST_LOGIN_AT)
         }
     }
+
 }

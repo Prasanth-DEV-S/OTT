@@ -2,7 +2,8 @@ package com.dealshot.app.data.remote.api
 
 import com.dealshot.app.data.remote.dto.SendOtpRequestDto
 import com.dealshot.app.data.remote.dto.SendOtpResponseDto
-import com.dealshot.app.data.remote.dto.VideoResponseDto
+import com.dealshot.app.data.remote.dto.VideoCategoriesResponseDto
+import com.dealshot.app.data.video.VideoResponseDto
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -16,4 +17,7 @@ interface VideoApiService {
     suspend fun sendOtp(
         @Body request: SendOtpRequestDto
     ): SendOtpResponseDto
+
+    @GET("videos/categories")
+    suspend fun getVideoCategories(): VideoCategoriesResponseDto
 }

@@ -3,8 +3,10 @@ package com.dealshot.app.presentation.shared.login
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dealshot.app.core.error.AppErrorHandler
 import com.dealshot.app.data.remote.ApiClient
 import com.dealshot.app.data.remote.dto.SendOtpRequestDto
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,11 +27,6 @@ class LoginViewModel : ViewModel() {
 
     fun onIntent(intent: LoginIntent) {
 
-        Log.d(
-            "LOGIN_VM",
-            "INTENT RECEIVED = $intent"
-        )
-
         when (intent) {
 
             is LoginIntent.PhoneChanged -> {
@@ -49,12 +46,10 @@ class LoginViewModel : ViewModel() {
 
             LoginIntent.ContinueClicked -> {
 
-                val phone = _uiState.value.phoneNumber
+                // Ignore taps while a request is already running
+                if (_uiState.value.isLoading) return
 
-                Log.d(
-                    "LOGIN_FLOW",
-                    "Continue clicked: $phone"
-                )
+                val phone = _uiState.value.phoneNumber
 
                 if (phone.length != 10) {
 
@@ -68,7 +63,7 @@ class LoginViewModel : ViewModel() {
                     return
                 }
 
-                sendOtp(phone)
+                sendOtp("+91$phone")
             }
 
             LoginIntent.ClearError -> {
@@ -95,26 +90,10 @@ class LoginViewModel : ViewModel() {
             }
 
             try {
-
-                Log.d(
-                    "AUTH_TEST",
-                    "Sending OTP for: $mobile"
-                )
-
                 val response = ApiClient.authApi.sendOtp(
                     SendOtpRequestDto(
                         mobile = mobile
                     )
-                )
-
-                Log.d(
-                    "AUTH_TEST",
-                    "OTP SUCCESS: ${response.message}"
-                )
-
-                Log.d(
-                    "AUTH_TEST",
-                    "MOBILE HINT: ${response.mobileHint}"
                 )
 
                 _uiState.update {
@@ -134,19 +113,20 @@ class LoginViewModel : ViewModel() {
                     )
                 )
 
+            } catch (e: CancellationException) {
+
+                // Never swallow cancellation (screen closed / scope cancelled)
+                throw e
+
             } catch (e: Exception) {
 
-                Log.e(
-                    "AUTH_TEST",
-                    "SEND OTP FAILED",
-                    e
-                )
+                Log.e("AUTH_TEST", "SEND OTP FAILED", e)
 
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         message = null,
-                        error = e.message ?: "Failed to send OTP"
+                        error = AppErrorHandler.getUserMessage(e)
                     )
                 }
             }

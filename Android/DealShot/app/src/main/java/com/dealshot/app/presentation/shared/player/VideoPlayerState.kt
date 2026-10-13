@@ -1,6 +1,9 @@
 package com.dealshot.app.presentation.shared.player
 
+import com.dealshot.app.data.remote.dto.WatchProgressDto
+
 data class VideoPlayerState(
+    val videoId: String = "",
     val title: String = "",
     val description: String = "",
     val videoUrl: String = "",
@@ -10,6 +13,8 @@ data class VideoPlayerState(
 
     // Player state
     val isPlaying: Boolean = true,
+    val isProgressLoaded: Boolean = false,
+    val isSavingProgress: Boolean = false,
     val currentPlaybackPosition: Long = 0L,
     val totalDuration: Long = 0L,
 
@@ -24,5 +29,12 @@ data class VideoPlayerState(
 
     // Loading / error
     val isLoading: Boolean = true,
+    val error: String? = null
+)
+
+data class WatchProgressState(
+    val progress: WatchProgressDto? = null,
+    val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
     val error: String? = null
 )

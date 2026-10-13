@@ -1,14 +1,23 @@
 package com.dealshot.app.presentation.shared.details
 
+import com.dealshot.app.data.remote.dto.VideoDetailsDto
 import com.dealshot.app.data.video.Video
+
 
 data class DetailsState(
     val video: Video? = null,
+    val videoDetails: VideoDetailsDto? = null,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val isLiked: Boolean = false,
+    val isInMyWatchLater: Boolean = false,
+    val isUpdatingMyWatchLater: Boolean = false,
+    val isUpdatingLike: Boolean = false
 )
 
 sealed interface DetailsIntent {
+
+    data class Initialize(val video: Video) : DetailsIntent
 
     data object BackClicked : DetailsIntent
 
@@ -21,10 +30,6 @@ sealed interface DetailsIntent {
     data object ShareClicked : DetailsIntent
 
     data object ClearError : DetailsIntent
-
-    data class Initialize(
-        val video: Video
-    ) : DetailsIntent
 }
 
 sealed interface DetailsEffect {
@@ -34,6 +39,8 @@ sealed interface DetailsEffect {
     data object OpenPlayer : DetailsEffect
 
     data object OpenMyList : DetailsEffect
+
+    data object Liked : DetailsEffect
 
     data object OpenLogin : DetailsEffect
 

@@ -15,6 +15,7 @@ data class HomeState(
     val internationalVideos: List<VideoDto> = emptyList(),
     val eventsVideos: List<VideoDto> = emptyList(),
     val premiumVideos: List<VideoDto> = emptyList(),
+    val sections: List<String> = listOf("Home"),
 
     val featuredVideo: VideoDto? = null,
 
@@ -27,42 +28,33 @@ data class HomeState(
     val error: String? = null,
 
     val categories: List<VideoCategory> = emptyList(),
-
+    val isCategoriesLoading: Boolean = false,
     val likedVideos: List<VideoDto> = emptyList(),
     val myListVideos: List<VideoDto> = emptyList(),
+    val myWatchLaterVideoIds: Set<String> = emptySet(),
+    val updatingMyWatchLaterVideoIds: Set<String> = emptySet(),
 
     val selectedSection: String = "Home"
-
-    )
+)
 
 
 data class VideoCategory(
     val name: String,
-    val videos: List<Video>
+    val count: Int
 )
-/*
-enum class HomeSection {
-    HOME,
-    EVENTS,
-    INTERNATIONAL,
-    INSPIRATION,
-    BANNER,
-    PREMIUM,
-    NATIONAL,
-    MOTIVATIONAL,
-    ACADEMIC
 
-}
-*/
 
 sealed interface HomeIntent {
 
     data object LoadHome : HomeIntent
 
+    data object LoadCategories : HomeIntent
+
     data class VideoClicked(
         val video: VideoDto
     ) : HomeIntent
 
+    data object RefreshMyWatchLater : HomeIntent
     data class SectionClicked(
         val section: String
     ) : HomeIntent
@@ -78,6 +70,7 @@ sealed interface HomeIntent {
     data object LogoutClicked : HomeIntent
 
     data object MyListClicked : HomeIntent
+    data class ToggleMyList(val video: VideoDto) : HomeIntent
     data object LikedVideosClicked  : HomeIntent
 
     data object ClearError : HomeIntent

@@ -1,15 +1,15 @@
 package com.dealshot.app.presentation.shared.subscription
 
-data class SubscriptionState(
-    val selectedPlan: SubscriptionPlan = SubscriptionPlan.YEARLY,
-    val isProcessing: Boolean = false,
-    val error: String? = null
-)
+import com.dealshot.app.data.subscription.SubscriptionPlan
 
-enum class SubscriptionPlan {
-    MONTHLY,
-    YEARLY
-}
+data class SubscriptionState(
+    val plans: List<SubscriptionPlan> = emptyList(),
+    val selectedPlan: SubscriptionPlan? = null,
+    val isLoading: Boolean = false,
+    val isProcessing: Boolean = false,
+    val error: String? = null,
+    val message : String? = null,
+)
 
 sealed interface SubscriptionIntent {
 

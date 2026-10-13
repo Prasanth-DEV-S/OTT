@@ -3,6 +3,7 @@ package com.dealshot.app.presentation.shared.otp
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dealshot.app.core.error.AppErrorHandler
 import com.dealshot.app.data.preferences.UserPreferences
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 import com.dealshot.app.data.remote.ApiClient
 import com.dealshot.app.data.remote.dto.SendOtpRequestDto
 import com.dealshot.app.data.remote.dto.VerifyOtpRequestDto
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 
 class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
@@ -30,11 +32,6 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
     val effect = _effect.receiveAsFlow()
 
     fun onIntent(intent: OtpIntent) {
-
-        Log.d(
-            "OTP_VM",
-            "INTENT RECEIVED = $intent"
-        )
 
         when (intent) {
 
@@ -68,11 +65,6 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
                         error = null
                     )
                 }
-
-                Log.d(
-                    "OTP_FLOW",
-                    "OTP = $otp, canVerify = ${otp.length == 6}"
-                )
             }
 
             OtpIntent.VerifyClicked -> {
@@ -83,11 +75,6 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
             OtpIntent.BackClicked -> {
 
                 viewModelScope.launch {
-
-                    Log.d(
-                        "OTP_FLOW",
-                        "Sending NavigateBack"
-                    )
 
                     _effect.send(
                         OtpEffect.NavigateBack
@@ -138,20 +125,10 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
 
             try {
 
-                Log.d(
-                    "OTP_FLOW",
-                    "RESEND OTP API CALL"
-                )
-
                 val response = ApiClient.authApi.sendOtp(
                     SendOtpRequestDto(
                         mobile = phoneNumber
                     )
-                )
-
-                Log.d(
-                    "OTP_FLOW",
-                    "RESEND OTP SUCCESS"
                 )
 
                 _uiState.update {
@@ -184,11 +161,6 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
 
         val otp = _uiState.value.otp
 
-        Log.d(
-            "OTP_FLOW",
-            "VERIFY CLICKED = $otp"
-        )
-
         if (otp.length != 6) {
 
             _uiState.update {
@@ -212,31 +184,12 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
 
             try {
 
-                Log.d(
-                    "OTP_FLOW",
-                    "VERIFY OTP API CALL"
-                )
-
                 val response = ApiClient.authApi.verifyOtp(
                     VerifyOtpRequestDto(
                         mobile = phoneNumber,
-                        otp = otp
+                        otp = otp,
+                        name = "User Name"
                     )
-                )
-
-                Log.d(
-                    "OTP_FLOW",
-                    "VERIFY OTP SUCCESS"
-                )
-
-                Log.d(
-                    "OTP_FLOW",
-                    "IS NEW USER = ${response.isNewUser}"
-                )
-
-                Log.d(
-                    "OTP_FLOW",
-                    "USER MOBILE = ${response.user}"
                 )
 
                 _uiState.update {
@@ -250,29 +203,42 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
                 val user = response.user
 
                 userPreferences.saveLoginSession(
-                    token = response.token.orEmpty(),
-                    userId = user.id.orEmpty(),
-                    mobile = user.mobile ?: phoneNumber,
-                    role = user.role.orEmpty(),
-                    isNewUser = response.isNewUser
+                    token = response.token,
+                    userId = user.id,
+                    name = user.name,
+                    mobile = user.mobile.ifBlank { phoneNumber },
+                    email = user.email,
+                    role = user.role,
+                    isMobileVerified = user.isMobileVerified,
+                    isNewUser = response.isNewUser,
+                    maxProfiles = user.maxProfiles,
+                    maxDevices = user.maxDevices,
+                    subscriptionPlanId = user.subscription.planId,
+                    subscriptionStartDate = user.subscription.startDate,
+                    subscriptionEndDate = user.subscription.endDate,
+                    subscriptionIsActive = user.subscription.isActive,
+                    subscriptionStatus = user.subscription.status,
+                    lastLoginAt = user.lastLoginAt
                 )
 
                 _effect.send(
                     OtpEffect.NavigateToHome
                 )
 
+            } catch (e: CancellationException) {
+
+                // Never swallow cancellation (screen closed / scope cancelled)
+                throw e
+
             } catch (e: Exception) {
 
-                Log.e(
-                    "OTP_FLOW",
-                    "VERIFY OTP FAILED",
-                    e
-                )
+                Log.e("AUTH_TEST", "SEND OTP FAILED", e)
 
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Invalid OTP"
+                        message = null,
+                        error = AppErrorHandler.getUserMessage(e)
                     )
                 }
             }
