@@ -3,10 +3,11 @@ package com.dealshot.app.presentation.mobile.category
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -22,6 +23,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.background
+
 @Composable
 fun CategoryVideosScreen(
     category: String,
@@ -30,19 +34,16 @@ fun CategoryVideosScreen(
     onVideoClick: (VideoDto) -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .statusBarsPadding().navigationBarsPadding()
     ) {
 
         // Header
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    top = 50.dp,
-                    start = 8.dp,
-                    end = 16.dp,
-                    bottom = 16.dp
-                ),
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
@@ -50,7 +51,7 @@ fun CategoryVideosScreen(
                 onClick = onBack
             ) {
                 Icon(
-                    imageVector = Icons.Default.ArrowBack,
+                    painter = painterResource(id = R.drawable.chevron_left),
                     contentDescription = "Back",
                     tint = Color.White
                 )
@@ -59,8 +60,9 @@ fun CategoryVideosScreen(
             Text(
                 text = category,
                 color = Color.White,
-                fontSize = 24.sp,
-                modifier = Modifier.padding(start = 8.dp)
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 2.dp)
             )
         }
 
@@ -68,14 +70,11 @@ fun CategoryVideosScreen(
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
-                top = 10.dp,
-                bottom = 20.dp
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp
+
             ),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(
                 items = videos,
@@ -102,23 +101,27 @@ fun CategoryVideosScreen(
                             )
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-/*                    Text(
-                        text = video.title.orEmpty(),
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    video.title?.let {
+                        Text(
+                            text = it,
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = video.duration.orEmpty(),
-                        color = Color.Gray,
-                        fontSize = 12.sp
-                    )*/
+                    if (!video.duration.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = video.duration,
+                            color = Color(0xFF9E9E9E),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
         }

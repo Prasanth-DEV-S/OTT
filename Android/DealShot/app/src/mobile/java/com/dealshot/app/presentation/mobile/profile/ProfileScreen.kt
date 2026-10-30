@@ -1,442 +1,559 @@
 package com.dealshot.app.presentation.mobile.profile
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PhoneIphone
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import com.dealshot.app.presentation.mobile.login.LoginBackground
 import com.dealshot.app.presentation.shared.profile.ProfileIntent
 import com.dealshot.app.presentation.shared.profile.ProfileState
-import com.dealshot.app.ui.theme.orange
-
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
-
-// ───────────── Design tokens (matched to the iOS "My Profile" screen) ─────────────
-private val ScreenBg = Color(0xFF080808)
-private val CardBg = Color(0xFF0F0F0F)
-private val CardBorder = Color(0xFF3D341C)          // dim gold hairline around the card
-private val Gold = Color(0xFFE9D7A0)                // titles, avatar ring, icons
-private val GoldDeep = Color(0xFFD8B64A)            // "ACCOUNT" eyebrow, underline
-private val GoldBorder = Color(0xFF5C4D24)          // button borders
-private val AvatarInner = Color(0xFF5B4421)         // dark brown inside avatar ring
-private val Divider = Color(0xFF242424)
-private val IconTile = Color(0xFF1A1A1A)
-private val ButtonWarmBg = Color(0xFF1B1812)
-private val TextSecondary = Color(0xFF9A9A9A)
-private val TextMuted = Color(0xFF6E6E6E)
-private val OnlineGreen = Color(0xFF4CD964)
-private val VerifiedBg = Color(0xFF16301C)
+import com.dealshot.app.ui.theme.CardBgDark
+import com.dealshot.app.ui.theme.CardBorderBottom
+import com.dealshot.app.ui.theme.CardBorderTop
+import com.dealshot.app.ui.theme.DeepBlackBg
+import com.dealshot.app.ui.theme.FieldBg
+import com.dealshot.app.ui.theme.FieldBorderUnfocused
+import com.dealshot.app.ui.theme.FieldDivider
+import com.dealshot.app.ui.theme.FieldPlaceholder
+import com.dealshot.app.ui.theme.GoldPrimary
+import com.dealshot.app.ui.theme.GoldTextLight
+import com.dealshot.app.ui.theme.TextMuted
 
 @Composable
 fun ProfileScreen(
     state: ProfileState,
-    onIntent: (ProfileIntent) -> Unit,
-    email: String? = null,                 // null/blank -> "Not available"
-    language: String = "English",
-    onLanguageClick: () -> Unit = {}
+    onIntent: (ProfileIntent) -> Unit
 ) {
-    val displayName = state.username
-        .ifBlank { state.selectedProfile?.name.orEmpty() }
-        .ifBlank { "Guest" }
+    androidx.activity.compose.BackHandler {
+        onIntent(ProfileIntent.BackClicked)
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ScreenBg)
+            .background(DeepBlackBg)
     ) {
-        Column(
+        // Dark gold background with bottom waves and particles
+        LoginBackground()
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(top = 12.dp, bottom = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .background(Color.Black.copy(alpha = 0.70f))
+                .clickable { onIntent(ProfileIntent.BackClicked) },
+            contentAlignment = Alignment.Center
         ) {
-            // ── Top bar: back button + eyebrow ──
-            Box(modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF1C1C1C))
-                        .clickable { onIntent(ProfileIntent.BackClicked) }
-                        .align(Alignment.CenterStart),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Back",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-                Text(
-                    text = "ACCOUNT",
-                    color = GoldDeep,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 3.sp,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Title block: left-aligned and sized like the Home screen headings
-            Text(
-                text = "My Profile",
-                color = Gold,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "Manage your profile and account details",
-                color = TextSecondary,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            // ── Main card ──
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(CardBg)
-                    .border(1.dp, CardBorder, RoundedCornerShape(32.dp))
-                    .padding(horizontal = 20.dp, vertical = 22.dp)
+                    .clickable { /* Consume click so clicking card doesn't dismiss */ }
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                // Avatar + name + phone
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ProfileAvatar(
-                        imageUrl = state.profileImageUrl,
-                        editable = state.isEditingProfile,
-                        onClick = { onIntent(ProfileIntent.ChangeProfilePictureClicked) }
+                Text(
+                    text = "ACCOUNT",
+                    color = GoldPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.5.sp,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                Text(
+                    text = "My Profile",
+                    color = GoldTextLight,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Manage your profile and account details",
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Central Profile Popup Card
+                ProfilePopupCard(
+                    userName = state.username.ifBlank { state.selectedProfile?.name.orEmpty() },
+                    mobileNumber = state.phoneNumber,
+                    profileImageUrl = state.profileImageUrl ?: state.avatar,
+                    onLogout = { onIntent(ProfileIntent.LogoutClicked) },
+                    onLogin = { onIntent(ProfileIntent.LogoutClicked) }
+                )
+
+                if (state.isLoading) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = GoldPrimary,
+                        strokeWidth = 2.dp
                     )
+                }
+            }
+        }
+    }
+}
 
-                    Spacer(Modifier.width(16.dp))
+@Composable
+fun ProfilePopupCard(
+    userName: String,
+    mobileNumber: String,
+    profileImageUrl: String? = null,
+    onLogout: () -> Unit,
+    onLogin: () -> Unit = onLogout,
+    modifier: Modifier = Modifier
+) {
+    val isLoggedIn = mobileNumber.isNotBlank() || (userName.isNotBlank() && userName != "User Name" && userName != "Guest")
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        if (state.isEditingProfile) {
-                            BasicTextField(
-                                value = state.username,
-                                onValueChange = { onIntent(ProfileIntent.UsernameChanged(it)) },
-                                singleLine = true,
-                                textStyle = TextStyle(
-                                    color = Color.White,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                cursorBrush = SolidColor(GoldDeep),
-                                modifier = Modifier.fillMaxWidth(),
-                                decorationBox = { innerTextField ->
-                                    Box {
-                                        if (state.username.isEmpty()) {
-                                            Text(
-                                                text = "Guest",
-                                                color = TextMuted,
-                                                fontSize = 22.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
-                                }
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Box(
-                                Modifier
-                                    .fillMaxWidth(0.92f)
-                                    .height(1.dp)
-                                    .background(GoldDeep.copy(alpha = 0.6f))
+    val displayName = when {
+        userName.isNotBlank() && userName != "User Name" && userName != "Guest" -> userName
+        mobileNumber.length >= 4 -> "User ${mobileNumber.takeLast(4)}"
+        else -> "Guest User"
+    }
+
+    val formattedMobile = if (mobileNumber.isNotBlank()) {
+        if (mobileNumber.startsWith("+")) mobileNumber else "+91 $mobileNumber"
+    } else {
+        ""
+    }
+
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+
+    if (showLogoutConfirm) {
+        LogoutConfirmDialog(
+            onConfirm = {
+                showLogoutConfirm = false
+                onLogout()
+            },
+            onDismiss = {
+                showLogoutConfirm = false
+            }
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .widthIn(max = 440.dp)
+            .fillMaxWidth()
+            .shadow(
+                elevation = 24.dp,
+                shape = RoundedCornerShape(24.dp),
+                spotColor = GoldPrimary.copy(alpha = 0.25f),
+                ambientColor = GoldPrimary.copy(alpha = 0.15f)
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(CardBgDark.copy(alpha = 0.95f))
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(
+                        CardBorderTop,
+                        CardBorderBottom
+                    )
+                ),
+                shape = RoundedCornerShape(24.dp)
+            )
+            .padding(horizontal = 24.dp, vertical = 24.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+
+            // -------------------------------------------------
+            // SECTION 1: AVATAR + USER NAME + PHONE
+            // -------------------------------------------------
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(modifier = Modifier.size(72.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, GoldPrimary, CircleShape)
+                            .padding(4.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF382B17)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!profileImageUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = profileImageUrl,
+                                contentDescription = "Profile picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
                             )
                         } else {
-                            Text(
-                                text = displayName,
-                                color = Color.White,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
+                            Icon(
+                                painter = painterResource(id = R.drawable.person_crop_circle),
+                                contentDescription = "User",
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(40.dp)
                             )
                         }
+                    }
 
-                        if (state.phoneNumber.isNotBlank()) {
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.PhoneIphone,
-                                    contentDescription = null,
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = state.phoneNumber,
-                                    color = TextSecondary,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
+                    // Green online indicator
+                    if (isLoggedIn) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = (-2).dp, y = (-2).dp)
+                                .size(16.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF4CD964))
+                                .border(2.5.dp, CardBgDark, CircleShape)
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(18.dp))
-                HorizontalDivider(color = Divider)
-                Spacer(Modifier.height(18.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
-                // Edit / Cancel button
-                OutlinedActionButton(
-                    text = if (state.isEditingProfile) "Cancel Editing" else "Edit Profile",
-                    icon = if (state.isEditingProfile) Icons.Default.Close else Icons.Default.Edit,
-                    onClick = {
-                        onIntent(
-                            (if (state.isEditingProfile) {
-                                ProfileIntent.CancelEditClicked}
-                            else
-                                (ProfileIntent.EditProfileClicked)) as ProfileIntent
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = displayName,
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    if (isLoggedIn && formattedMobile.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.iphone),
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = formattedMobile,
+                                color = TextMuted,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "Sign in to watch premium stories",
+                            color = TextMuted,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Normal
                         )
                     }
-                )
+                }
+            }
 
-                Spacer(Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
+            HorizontalDivider(
+                color = FieldDivider,
+                thickness = 1.dp
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // -------------------------------------------------
+            // SECTION 2: DETAILS / LOG IN OR LOG OUT ACTIONS
+            // -------------------------------------------------
+            if (isLoggedIn) {
                 Text(
                     text = "ACCOUNT DETAILS",
-                    color = TextMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 2.5.sp
+                    color = FieldPlaceholder,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
                 )
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Mobile number (verified)
-                DetailRow(
-                    icon = Icons.Default.PhoneIphone,
-                    label = "Mobile Number",
-                    value = state.phoneNumber.ifBlank { "Not available" },
-                    trailing = {
-                        if (state.phoneNumber.isNotBlank()) VerifiedBadge()
-                    }
-                )
-
-                // Email
-                // Inside ProfileScreen(), replace the current Email section:
-                val displayEmail = state.email.ifBlank { email.orEmpty() }
-
-                Column {
+                // ITEM 1: Mobile Number
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(FieldBg)
+                        .border(1.dp, FieldBorderUnfocused.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        IconTile(Icons.Default.Email)
-                        Spacer(Modifier.width(14.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF2B2620)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.iphone),
+                                contentDescription = "Mobile Number",
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Email",
-                                color = TextMuted,
-                                fontSize = 12.sp
+                                text = "Mobile Number",
+                                color = FieldPlaceholder,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Normal
                             )
-
-                            Spacer(Modifier.height(4.dp))
-
-                            if (state.isEditingProfile) {
-                                BasicTextField(
-                                    value = state.email,
-                                    onValueChange = {
-                                        onIntent(ProfileIntent.EmailChanged(it))
-                                    },
-                                    singleLine = true,
-                                    textStyle = TextStyle(
-                                        color = Color.White,
-                                        fontSize = 15.sp
-                                    ),
-                                    cursorBrush = SolidColor(GoldDeep),
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Email
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    decorationBox = { innerTextField ->
-                                        Box {
-                                            if (state.email.isBlank()) {
-                                                Text(
-                                                    text = "Enter email address",
-                                                    color = TextMuted,
-                                                    fontSize = 14.sp
-                                                )
-                                            }
-                                            innerTextField()
-                                        }
-                                    }
-                                )
-
-                                Spacer(Modifier.height(4.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(GoldDeep.copy(alpha = 0.6f))
-                                )
-                            } else {
-                                Text(
-                                    text = displayEmail.ifBlank { "Not available" },
-                                    color = Color.White,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = formattedMobile,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
 
-                        if (!state.isEditingProfile) {
-                            // Keep the existing non-editing appearance.
-                            Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF16301C)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.checkmark),
+                                contentDescription = "Verified",
+                                tint = Color(0xFF4CD964),
+                                modifier = Modifier.size(14.dp)
+                            )
                         }
                     }
-
-                    HorizontalDivider(color = Divider)
                 }
 
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Language
-                LanguageRow(
-                    language = language,
-                    onClick = onLanguageClick
-                )
+                var isLogoutFocused by remember { mutableStateOf(false) }
+                val logoutFocusRequester = remember { FocusRequester() }
 
-                // Save Profile (only while editing)
-                if (state.isEditingProfile) {
-                    Spacer(Modifier.height(20.dp))
-                    SaveProfileButton(
-                        isSaving = state.isSaving,
-                        onClick = { onIntent(ProfileIntent.SaveProfileClicked) }
-                    )
+                LaunchedEffect(Unit) {
+                    runCatching { logoutFocusRequester.requestFocus() }
                 }
 
-                Spacer(Modifier.height(20.dp))
-
-                // Logout
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onIntent(ProfileIntent.LogoutClicked) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Logout,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "Logout", color = TextSecondary, fontSize = 14.sp)
-                }
-            }
-
-            // Loading / error feedback (kept from the previous screen)
-            if (state.isLoading) {
-                Spacer(Modifier.height(20.dp))
-                CircularProgressIndicator(color = orange)
-            }
-
-            state.error?.let { message ->
-                Spacer(Modifier.height(16.dp))
-                Row(
+                // ITEM 2: Log out
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFFF4D4D).copy(alpha = 0.12f))
-                        .border(1.dp, Color(0xFFFF4D4D).copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .focusRequester(logoutFocusRequester)
+                        .onFocusChanged { isLogoutFocused = it.isFocused }
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isLogoutFocused) Color(0xFF382F23) else FieldBg)
+                        .border(
+                            width = if (isLogoutFocused) 2.dp else 1.dp,
+                            color = if (isLogoutFocused) GoldPrimary else CardBorderBottom,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable { showLogoutConfirm = true }
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF2B2620)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.rectangle_portrait_and_arrow_right),
+                                contentDescription = "Log out",
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Log out",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Sign out of your DealShot account",
+                                color = TextMuted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
+
+                        Icon(
+                            painter = painterResource(id = R.drawable.chevron_right),
+                            contentDescription = "Go",
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            } else {
+                // NOT LOGGED IN / GUEST STATE
+                Text(
+                    text = "GET STARTED",
+                    color = FieldPlaceholder,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(FieldBg)
+                        .border(1.dp, FieldBorderUnfocused.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
                     Text(
-                        text = message,
-                        color = Color(0xFFFF6B6B),
+                        text = "Sign in or register now to unlock unlimited premium videos, save watch history, and sync across devices.",
+                        color = TextMuted,
                         fontSize = 13.sp,
-                        modifier = Modifier.weight(1f)
+                        lineHeight = 18.sp
                     )
-                    Row(
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                var isLoginFocused by remember { mutableStateOf(false) }
+                val loginFocusRequester = remember { FocusRequester() }
+
+                LaunchedEffect(Unit) {
+                    runCatching { loginFocusRequester.requestFocus() }
+                }
+
+                // Log In / Register Button
+                Button(
+                    onClick = onLogin,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .focusRequester(loginFocusRequester)
+                        .onFocusChanged { isLoginFocused = it.isFocused },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent
+                    ),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onIntent(ProfileIntent.RetryClicked) }
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFFE8C575),
+                                        Color(0xFFC9942C),
+                                        Color(0xFF9E6B15)
+                                    )
+                                )
+                            )
+                            .border(
+                                width = if (isLoginFocused) 2.5.dp else 0.dp,
+                                color = if (isLoginFocused) Color.White else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Retry",
-                            tint = orange,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Retry", color = orange, fontSize = 13.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Log In / Register",
+                                color = Color(0xFF140E02),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                painter = painterResource(id = R.drawable.arrow_right),
+                                contentDescription = null,
+                                tint = Color(0xFF140E02),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -444,244 +561,153 @@ fun ProfileScreen(
     }
 }
 
-// ───────────────────────────── Components ─────────────────────────────
-
 @Composable
-private fun ProfileAvatar(
-    imageUrl: String?,
-    editable: Boolean,
-    onClick: () -> Unit
+fun LogoutConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
 ) {
-    Box(modifier = Modifier.size(84.dp)) {
+    val confirmFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        runCatching { confirmFocusRequester.requestFocus() }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
         Box(
             modifier = Modifier
-                .size(84.dp)
-                .clip(CircleShape)
-                .background(Gold)
-                .padding(5.dp)
-                .clip(CircleShape)
-                .background(AvatarInner)
-                .then(if (editable) Modifier.clickable(onClick = onClick) else Modifier),
+                .widthIn(max = 380.dp)
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 24.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    spotColor = GoldPrimary.copy(alpha = 0.25f),
+                    ambientColor = GoldPrimary.copy(alpha = 0.20f)
+                )
+                .clip(RoundedCornerShape(20.dp))
+                .background(CardBgDark)
+                .border(
+                    width = 1.dp,
+                    color = GoldPrimary,
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .padding(horizontal = 24.dp, vertical = 28.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (imageUrl.isNullOrBlank()) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Profile picture",
-                    tint = Gold,
-                    modifier = Modifier.size(52.dp)
-                )
-            } else {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = "Profile picture",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            }
-        }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Gold Circle with Logout Icon
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, GoldPrimary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.rectangle_portrait_and_arrow_right),
+                        contentDescription = "Log out",
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
 
-        // Online indicator
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .offset(x = 2.dp, y = 2.dp)
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(OnlineGreen)
-                .border(3.dp, CardBg, CircleShape)
-        )
-    }
-}
+                Spacer(modifier = Modifier.height(20.dp))
 
-@Composable
-private fun OutlinedActionButton(
-    text: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(18.dp)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .clip(shape)
-            .background(ButtonWarmBg)
-            .border(1.dp, GoldBorder, shape)
-            .clickable(onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-private fun DetailRow(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    trailing: @Composable (() -> Unit)? = null
-) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconTile(icon)
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = label, color = TextMuted, fontSize = 12.sp)
-                Spacer(Modifier.height(2.dp))
+                // Title: Log Out
                 Text(
-                    text = value,
+                    text = "Log Out",
                     color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.3.sp
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Subtitle
+                Text(
+                    text = "Are you sure you want to log out of your DealShot account?",
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Cancel Button
+                    var isCancelFocused by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isCancelFocused) Color(0xFF382F23) else Color(0xFF231F1A))
+                            .border(
+                                width = if (isCancelFocused) 2.dp else 1.dp,
+                                color = if (isCancelFocused) GoldPrimary else Color(0xFF383025),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .onFocusChanged { isCancelFocused = it.isFocused }
+                            .clickable { onDismiss() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    // Log Out Button
+                    var isConfirmFocused by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                            .focusRequester(confirmFocusRequester)
+                            .onFocusChanged { isConfirmFocused = it.isFocused }
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFFE8C575),
+                                        Color(0xFFC9942C),
+                                        Color(0xFF9E6B15)
+                                    )
+                                )
+                            )
+                            .border(
+                                width = if (isConfirmFocused) 2.5.dp else 0.dp,
+                                color = if (isConfirmFocused) Color.White else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable { onConfirm() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Log Out",
+                            color = Color(0xFF140E02),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
-            trailing?.invoke()
-        }
-        HorizontalDivider(color = Divider)
-    }
-}
-
-@Composable
-private fun LanguageRow(
-    language: String,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconTile(Icons.Default.Language)
-        Spacer(Modifier.width(14.dp))
-        Text(
-            text = "Language",
-            color = TextMuted,
-            fontSize = 13.sp,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = language,
-            color = orange,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(Modifier.width(4.dp))
-        Icon(
-            imageVector = Icons.Default.UnfoldMore,
-            contentDescription = null,
-            tint = orange,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(8.dp))
-    }
-}
-
-@Composable
-private fun IconTile(icon: ImageVector) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(IconTile)
-            .border(1.dp, Color(0xFF222222), RoundedCornerShape(16.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Gold,
-            modifier = Modifier.size(22.dp)
-        )
-    }
-}
-
-@Composable
-private fun VerifiedBadge() {
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
-            .background(VerifiedBg),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Check,
-            contentDescription = "Verified",
-            tint = OnlineGreen,
-            modifier = Modifier.size(18.dp)
-        )
-    }
-}
-
-@Composable
-private fun SaveProfileButton(
-    isSaving: Boolean,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(20.dp)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(54.dp)
-            .clip(shape)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(Color(0xFF3A2E17), Color(0xFF1A1509), Color(0xFF110E07))
-                )
-            )
-            .border(BorderStroke(1.dp, GoldBorder), shape)
-            .clickable(enabled = !isSaving, onClick = onClick)
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Default.AutoAwesome,
-            contentDescription = null,
-            tint = Gold,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = "Save Profile",
-            color = Color(0xFFF6EBC4),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f)
-        )
-        if (isSaving) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                color = Gold,
-                strokeWidth = 2.dp
-            )
-        } else {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
-            )
         }
     }
 }

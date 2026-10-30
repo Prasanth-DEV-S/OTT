@@ -2,12 +2,15 @@ package com.dealshot.app.presentation.mobile.category
 
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.dealshot.app.data.remote.ApiClient
 import com.dealshot.app.data.remote.dto.VideoDto
 import com.dealshot.app.data.remote.repository.VideoRepositoryImpl
+import com.dealshot.app.ui.theme.GoldPrimary
 
 @Composable
 fun CategoryVideosRoute(
@@ -52,12 +55,12 @@ fun CategoryVideosRoute(
     when {
         isLoading -> {
             Box(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "Loading...",
-                    color = Color.White
-                )
+                CircularProgressIndicator(color = GoldPrimary)
             }
         }
 

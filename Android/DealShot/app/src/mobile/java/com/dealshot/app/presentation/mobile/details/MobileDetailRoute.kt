@@ -3,20 +3,22 @@ package com.dealshot.app.presentation.mobile.details
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import com.dealshot.app.data.video.Video
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+
+import com.dealshot.app.data.video.Video
+import com.dealshot.app.data.remote.ApiClient.savedVideosApiService
+import com.dealshot.app.data.remote.ApiClient.videoDetailsApiService
+import com.dealshot.app.data.remote.ApiClient.likedVideosApiService
+import com.dealshot.app.data.remote.repository.SavedVideosRepositoryImpl
+import com.dealshot.app.data.remote.repository.like.LikedVideosRepositoryImpl
+import com.dealshot.app.data.remote.repository.VideoDetailsRepositoryImpl
 import com.dealshot.app.presentation.shared.details.DetailsEffect
 import com.dealshot.app.presentation.shared.details.DetailsIntent
 import com.dealshot.app.presentation.shared.details.DetailsViewModel
-import androidx.compose.runtime.remember
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.dealshot.app.data.remote.ApiClient.savedVideosApiService
-import com.dealshot.app.data.remote.ApiClient.videoDetailsApiService
-import com.dealshot.app.data.remote.api.VideoDetailsApiService
-import com.dealshot.app.data.remote.repository.SavedVideosRepositoryImpl
-import com.dealshot.app.data.remote.repository.VideoDetailsRepositoryImpl
 import com.dealshot.app.presentation.shared.details.DetailsViewModelFactory
+
 @Composable
 fun MobileDetailsRoute(
     video: Video,
@@ -24,9 +26,11 @@ fun MobileDetailsRoute(
     onPlayVideo: () -> Unit,
     onMyListClick: () -> Unit = {},
     onLikeClick: () -> Unit = {},
-    onShareClick: () -> Unit = {}
+    onShareClick: () -> Unit = {},
+    onLoginClick: () -> Unit = {},
+    isPremiumUser: Boolean = false,
+    onSubscribeClick: () -> Unit = {}
 ) {
-
     val repository = remember {
         VideoDetailsRepositoryImpl(
             api = videoDetailsApiService
@@ -38,17 +42,28 @@ fun MobileDetailsRoute(
             api = savedVideosApiService
         )
     }
+    val likedVideosRepository = remember {
+        LikedVideosRepositoryImpl(
+            api = likedVideosApiService
+        )
+    }
 
-    val factory = remember(repository, savedVideosRepository) {
+    val factory = remember(
+        repository,
+        savedVideosRepository,
+        likedVideosRepository
+    ) {
         DetailsViewModelFactory(
             repository = repository,
-            savedVideosRepository = savedVideosRepository
+            savedVideosRepository = savedVideosRepository,
+            likedVideosRepository = likedVideosRepository
         )
     }
 
     val viewModel: DetailsViewModel = viewModel(
         factory = factory
     )
+
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(video) {
@@ -56,33 +71,17 @@ fun MobileDetailsRoute(
             DetailsIntent.Initialize(video)
         )
     }
-    LaunchedEffect(Unit) {
+
+    LaunchedEffect(viewModel) {
         viewModel.effect.collect { effect ->
-
             when (effect) {
-
-                DetailsEffect.NavigateBack -> {
-                    onBack()
-                }
-
-                DetailsEffect.OpenPlayer -> {
-                    onPlayVideo()
-                }
-
-                DetailsEffect.OpenMyList -> {
-                    onMyListClick()
-                }
-
-                DetailsEffect.ShareVideo -> {
-                    onShareClick()
-                }
-
-                DetailsEffect.Liked -> {
-                    onLikeClick()
-                }
-
+                DetailsEffect.NavigateBack -> onBack()
+                DetailsEffect.OpenPlayer -> onPlayVideo()
+                DetailsEffect.OpenMyList -> onMyListClick()
+                DetailsEffect.ShareVideo -> onShareClick()
+                DetailsEffect.Liked -> onLikeClick()
                 DetailsEffect.OpenLogin -> {
-                    // Handle login navigation if needed
+                    onLoginClick()
                 }
             }
         }
@@ -108,6 +107,9 @@ fun MobileDetailsRoute(
             viewModel.onIntent(DetailsIntent.ShareClicked)
         },
         isLiked = state.isLiked,
-        isUpdatingLike = state.isUpdatingLike
+        isUpdatingLike = state.isUpdatingLike,
+        onLoginClick = onLoginClick,
+        isPremiumUser = isPremiumUser,
+        onSubscribeClick = onSubscribeClick
     )
 }

@@ -6,13 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Tv
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +30,9 @@ fun MobileSubscriptionScreen(
     if (state.isLoading) {
 
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
 
@@ -85,7 +82,7 @@ fun MobileSubscriptionScreen(
                     ) {
 
                         Icon(
-                            Icons.Default.ArrowBack,
+                            painter = painterResource(id = R.drawable.chevron_left),
                             contentDescription = null,
                             tint = Color(0xFF8B5CF6)
                         )
@@ -180,22 +177,22 @@ fun MobileSubscriptionScreen(
                 )
 
                 FeatureItem(
-                    Icons.Default.PlayArrow,
+                    R.drawable.play_fill,
                     "Unlimited movies & TV shows"
                 )
 
                 FeatureItem(
-                    Icons.Default.Tv,
+                    R.drawable.iphone,
                     "Watch on all your devices"
                 )
 
                 FeatureItem(
-                    Icons.Default.Download,
+                    R.drawable.arrow_right,
                     "Download and watch offline"
                 )
 
                 FeatureItem(
-                    Icons.Default.Star,
+                    R.drawable.crown_fill,
                     "Ad-free experience"
                 )
 
@@ -384,7 +381,7 @@ fun SubscriptionCard(
                 if (selected) {
 
                     Icon(
-                        Icons.Default.Check,
+                        painter = painterResource(id = R.drawable.checkmark),
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
@@ -397,7 +394,7 @@ fun SubscriptionCard(
 
 @Composable
 fun FeatureItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconResId: Int,
     text: String
 ) {
 
@@ -421,9 +418,10 @@ fun FeatureItem(
         ) {
 
             Icon(
-                icon,
+                painter = painterResource(id = iconResId),
                 contentDescription = null,
-                tint = Color.Gray
+                tint = Color.Gray,
+                modifier = Modifier.size(14.dp)
             )
         }
 

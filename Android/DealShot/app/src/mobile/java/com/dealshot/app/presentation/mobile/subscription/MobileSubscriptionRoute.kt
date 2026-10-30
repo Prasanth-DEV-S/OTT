@@ -9,15 +9,15 @@ import com.dealshot.app.presentation.shared.subscription.SubscriptionViewModel
 
 @Composable
 fun MobileSubscriptionRoute(
-    title: String,
-    description: String,
-    url: String,
+    title: String = "",
+    description: String = "",
+    url: String = "",
     onBack: () -> Unit,
     onOpenPlayer: (
         title: String,
         description: String,
         url: String
-    ) -> Unit,
+    ) -> Unit = { _, _, _ -> },
     viewModel: SubscriptionViewModel = viewModel()
 ) {
 

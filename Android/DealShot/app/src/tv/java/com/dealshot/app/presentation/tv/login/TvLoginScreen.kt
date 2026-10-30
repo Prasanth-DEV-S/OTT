@@ -19,10 +19,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -40,7 +39,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
-//import androidx.compose.ui.input.key.nativeKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.SpanStyle
@@ -52,18 +50,21 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.dealshot.app.presentation.shared.login.LoginIntent
 import com.dealshot.app.presentation.shared.login.LoginState
-import com.dealshot.app.ui.theme.*
+import com.dealshot.app.ui.theme.DeepBlackBg
+import com.dealshot.app.ui.theme.GoldPrimary
+import com.dealshot.app.ui.theme.GoldSecondary
+import com.dealshot.app.ui.theme.GoldTextLight
 
-private val FieldColor = Color(0xFF171717)
-private val KeyColor = Color(0xFF222222)
-private val MutedText = Color(0xFF8A8A8A)
+private val FieldColor = Color(0xFF1F1C18)
+private val KeyColor = Color(0xFF221F1B)
+private val MutedText = Color(0xFF9E988D)
 
 @Composable
 fun TvLoginScreen(
     state: LoginState,
     onIntent: (LoginIntent) -> Unit
 ) {
-    val isComplete = state.phoneNumber.length == 10
+    val isComplete = state.phoneNumber.length == 10 && state.phoneNumber.firstOrNull() in '6'..'9'
     val firstKeyFocus = remember { FocusRequester() }
 
     // Land focus on the keypad as soon as the screen opens (TV has no touch to "tap into" a field).
@@ -84,7 +85,7 @@ fun TvLoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(DeepBlackBg)
             // Physical remote number keys / keyboard. D-pad + Enter are NOT consumed here.
             .onPreviewKeyEvent { ev ->
                 if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -122,47 +123,69 @@ fun TvLoginScreen(
                 horizontalAlignment = Alignment.Start
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .background(orange.copy(alpha = 0.12f))
-                        .border(1.dp, orange.copy(alpha = 0.5f), CircleShape),
+                    modifier = Modifier.size(96.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayCircle,
-                        contentDescription = "DealShot",
-                        tint = orange,
-                        modifier = Modifier.size(52.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(88.dp)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(GoldPrimary.copy(alpha = 0.35f), Color.Transparent)
+                                )
+                            )
                     )
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF1E1A15))
+                            .border(1.dp, Color(0xFF453826), RoundedCornerShape(20.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(1.5.dp, GoldPrimary, RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.play_fill),
+                                contentDescription = "DealShot",
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(24.dp))
 
                 Text(
                     text = buildAnnotatedString {
-                        append("Deal")
-                        withStyle(SpanStyle(color = VividOrangeBg)) { append("Shot") }
+                        withStyle(SpanStyle(color = GoldTextLight)) { append("Deal") }
+                        withStyle(SpanStyle(color = GoldPrimary)) { append("Shot") }
                     },
-                    fontSize = 56.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    fontSize = 52.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
 
                 Text(
-                    text = "Sign in to continue",
-                    fontSize = 22.sp,
-                    color = Color(0xFFB0B0B0)
+                    text = "Sign in to watch premium stories.",
+                    fontSize = 20.sp,
+                    color = Color(0xFF9E988D)
                 )
 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(28.dp))
 
                 Text(
                     text = "Use the number keys on your remote\nor the on-screen keypad.",
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
                     color = MutedText
                 )
             }
@@ -254,8 +277,6 @@ fun TvLoginScreen(
                 Spacer(Modifier.height(16.dp))
 
                 // ---- Continue ----
-                // Stays focusable even before 10 digits so D-pad can always reach it;
-                // the ViewModel already validates and sets state.error.
                 TvContinueButton(
                     isLoading = state.isLoading,
                     isComplete = isComplete,
@@ -267,50 +288,50 @@ fun TvLoginScreen(
 }
 
 // =====================================================================
-// Phone number display (read-only; input comes from keypad / remote)
+// mobile number display
 // =====================================================================
 @Composable
 private fun PhoneDisplay(phone: String, isComplete: Boolean) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(12.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(60.dp)
             .clip(shape)
             .background(FieldColor)
-            .border(1.dp, if (isComplete) orange else Color(0xFF3A3A3A), shape)
-            .padding(horizontal = 20.dp),
+            .border(1.dp, if (isComplete) GoldPrimary else Color(0xFF363027), shape)
+            .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "+91",
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
+            color = GoldPrimary,
+            fontWeight = FontWeight.Bold,
             fontSize = 18.sp
         )
         Spacer(Modifier.width(12.dp))
         Box(
             Modifier
                 .width(1.dp)
-                .height(24.dp)
-                .background(Color(0xFF444444))
+                .height(22.dp)
+                .background(Color(0xFF383228))
         )
         Spacer(Modifier.width(16.dp))
 
         if (phone.isEmpty()) {
             Text(
-                text = "Enter mobile number",
-                color = Color(0xFF6E6E6E),
-                fontSize = 18.sp,
+                text = "10-digit phone number",
+                color = Color(0xFF756E63),
+                fontSize = 17.sp,
                 modifier = Modifier.weight(1f)
             )
         } else {
             Text(
                 text = phone.chunked(5).joinToString(" "),
                 color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.sp,
                 modifier = Modifier.weight(1f)
             )
@@ -318,7 +339,7 @@ private fun PhoneDisplay(phone: String, isComplete: Boolean) {
 
         Text(
             text = "${phone.length}/10",
-            color = if (isComplete) orange else MutedText,
+            color = if (isComplete) GoldPrimary else MutedText,
             fontSize = 14.sp
         )
     }
@@ -343,16 +364,15 @@ private fun TvKey(
     Box(
         modifier = modifier
             .height(52.dp)
-            .zIndex(if (focused) 1f else 0f) // draw the scaled key above its neighbours
+            .zIndex(if (focused) 1f else 0f)
             .scale(scale)
             .clip(shape)
-            .background(if (focused) orange.copy(alpha = 0.25f) else KeyColor)
+            .background(if (focused) GoldPrimary.copy(alpha = 0.25f) else KeyColor)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) orange else Color(0xFF333333),
+                color = if (focused) GoldPrimary else Color(0xFF383025),
                 shape = shape
             )
-            // clickable() makes it D-pad focusable and handles DPAD_CENTER / ENTER
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -382,21 +402,27 @@ private fun TvContinueButton(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val scale by animateFloatAsState(if (focused) 1.04f else 1f, label = "ctaScale")
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(12.dp)
 
-    val brush = Brush.horizontalGradient(listOf(orange, VividOrange))
+    val brush = Brush.horizontalGradient(
+        listOf(
+            Color(0xFFE8C575),
+            Color(0xFFC9942C),
+            Color(0xFF9E6B15)
+        )
+    )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(52.dp)
             .zIndex(if (focused) 1f else 0f)
             .scale(scale)
             .alpha(if (isComplete || isLoading) 1f else 0.4f)
             .clip(shape)
             .background(brush, shape)
             .border(
-                width = if (focused) 3.dp else 0.dp,
+                width = if (focused) 2.5.dp else 0.dp,
                 color = if (focused) Color.White else Color.Transparent,
                 shape = shape
             )
@@ -414,24 +440,33 @@ private fun TvContinueButton(
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    color = Color.White,
+                    modifier = Modifier.size(20.dp),
+                    color = Color(0xFF140E02),
                     strokeWidth = 2.dp
                 )
                 Spacer(Modifier.width(10.dp))
             }
             Text(
                 text = if (isLoading) "Loading..." else "Continue",
-                color = Color.White,
-                fontSize = 18.sp,
+                color = Color(0xFF140E02),
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
             )
+            if (!isLoading) {
+                Spacer(Modifier.width(6.dp))
+                Icon(
+                    painter = painterResource(id = R.drawable.arrow_right),
+                    contentDescription = null,
+                    tint = Color(0xFF140E02),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
 
 // =====================================================================
-// Decorative background (landscape-friendly, private to TV)
+// Decorative background (landscape-friendly for TV)
 // =====================================================================
 @Composable
 private fun TvLoginBackground() {
@@ -442,7 +477,7 @@ private fun TvLoginBackground() {
                 .size(640.dp)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(orange.copy(alpha = 0.22f), Color.Transparent)
+                        colors = listOf(GoldPrimary.copy(alpha = 0.18f), Color.Transparent)
                     )
                 )
         )
@@ -452,7 +487,7 @@ private fun TvLoginBackground() {
                 .size(520.dp)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(VividOrange.copy(alpha = 0.14f), Color.Transparent)
+                        colors = listOf(GoldSecondary.copy(alpha = 0.12f), Color.Transparent)
                     )
                 )
         )

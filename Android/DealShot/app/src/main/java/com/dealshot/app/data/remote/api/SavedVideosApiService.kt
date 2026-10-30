@@ -1,6 +1,5 @@
 package com.dealshot.app.data.remote.api
 
-import com.dealshot.app.data.remote.dto.LikedVideosListResponseDto
 import com.dealshot.app.data.remote.dto.SavedVideoMutationResponseDto
 import com.dealshot.app.data.remote.dto.SavedVideoRemoveResponseDto
 import com.dealshot.app.data.remote.dto.SavedVideosListResponseDto
@@ -23,23 +22,4 @@ interface SavedVideosApiService {
         @Path("videoId") videoId: String
     ): Response<SavedVideoMutationResponseDto>
 
-    @DELETE("{collection}/{videoId}")
-    suspend fun removeVideo(
-        @Path("collection") collection: String,
-        @Path("videoId") videoId: String
-    ): Response<SavedVideoRemoveResponseDto>
-
-    // Dedicated Liked Videos endpoints
-    @GET("videos/my-liked-videos")
-    suspend fun getLikedVideos(): Response<LikedVideosListResponseDto>
-
-    @POST("videos/{videoId}/like")
-    suspend fun likeVideo(
-        @Path("videoId") videoId: String
-    ): Response<SavedVideoMutationResponseDto>
-
-    @DELETE("videos/{videoId}/unlike")
-    suspend fun unlikeVideo(
-        @Path("videoId") videoId: String
-    ): Response<SavedVideoRemoveResponseDto>
 }

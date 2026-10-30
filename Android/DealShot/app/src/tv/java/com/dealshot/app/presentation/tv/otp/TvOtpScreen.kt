@@ -19,23 +19,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
@@ -51,35 +58,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dealshot.app.presentation.shared.otp.OtpIntent
 import com.dealshot.app.presentation.shared.otp.OtpState
-import com.dealshot.app.ui.theme.SecondaryText
-import com.dealshot.app.ui.theme.VividOrange
-import com.dealshot.app.ui.theme.VividOrangeBg
-import com.dealshot.app.ui.theme.orange
+import com.dealshot.app.ui.theme.DeepBlackBg
+import com.dealshot.app.ui.theme.GoldPrimary
+import com.dealshot.app.ui.theme.GoldSecondary
+import com.dealshot.app.ui.theme.GoldTextLight
 
 private const val OTP_LENGTH = 6
 
-private val KeyBg = Color(0xFF16151D)
-private val KeyFocusedBg = Color(0xFF2A2433)
-private val KeyBorder = Color(0xFF2A2833)
-private val OtpBoxBg = Color(0xFF0F0E15)
-private val OtpBoxBorder = Color(0xFF1E1C29)
-private val SuccessGreen = Color(0xFF4CD964)
+private val KeyBg = Color(0xFF221F1B)
+private val KeyFocusedBg = Color(0xFF382F23)
+private val KeyBorder = Color(0xFF383025)
+private val OtpBoxBg = Color(0xFF1F1C18)
+private val OtpBoxBorder = Color(0xFF363027)
+private val SuccessGreen = Color(0xFF81C784)
 private val ErrorRed = Color(0xFFFF6B6B)
 
-/**
- * TV version of OtpScreen.
- *
- * Same state and intents as the phone screen (OtpState / OtpIntent), so the
- * shared OtpViewModel is reused without any change.
- *
- * TV differences:
- *  - Two-column landscape layout with TV safe-area margins (48dp x 27dp).
- *  - On-screen number keypad that works with the D-pad. The system
- *    keyboard is not used, because it is slow with a remote.
- *  - Remote number keys and backspace also work (hardware keys).
- *  - Every button shows a clear focus state (orange border + slight zoom).
- *  - Remote Back goes through OtpIntent.BackClicked.
- */
 @Composable
 fun TvOtpScreen(
     state: OtpState,
@@ -109,19 +102,25 @@ fun TvOtpScreen(
         }
     }
 
-    // Focus the keypad when the screen opens
     LaunchedEffect(Unit) {
         runCatching { firstKeyFocus.requestFocus() }
     }
 
-    // After the 6th digit, jump to "Verify & Continue"
+    var resendTimer by remember { mutableIntStateOf(30) }
+
+    LaunchedEffect(resendTimer) {
+        if (resendTimer > 0) {
+            delay(1000L)
+            resendTimer -= 1
+        }
+    }
+
     LaunchedEffect(state.otp.length) {
         if (state.otp.length == OTP_LENGTH && verifyEnabled) {
             runCatching { verifyFocus.requestFocus() }
         }
     }
 
-    // Remote Back button
     BackHandler {
         onIntent(OtpIntent.BackClicked)
     }
@@ -129,8 +128,7 @@ fun TvOtpScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
-            // Remote number keys and backspace
+            .background(DeepBlackBg)
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) {
                     return@onPreviewKeyEvent false
@@ -171,25 +169,16 @@ fun TvOtpScreen(
 
                 Text(
                     text = buildAnnotatedString {
-                        append("Deal")
-                        withStyle(SpanStyle(color = VividOrangeBg)) {
-                            append("Shot")
-                        }
+                        withStyle(SpanStyle(color = GoldTextLight)) { append("Deal") }
+                        withStyle(SpanStyle(color = GoldPrimary)) { append("Shot") }
                     },
                     color = Color.White,
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp
                 )
 
-                Text(
-                    text = "MOVIES  TV SHOWS  BEYOND",
-                    color = Color.Gray,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 2.sp
-                )
-
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
                 Text(
                     text = "Verify your number",
@@ -202,16 +191,19 @@ fun TvOtpScreen(
 
                 Text(
                     text = "Enter the 6-digit code sent to",
-                    color = SecondaryText,
+                    color = Color(0xFF9E988D),
                     fontSize = 20.sp
                 )
 
-                Text(
-                    text = "+91 ${state.mobileHint}",
-                    color = SecondaryText,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                val displayPhone = if (state.phoneNumber.isNotBlank()) state.phoneNumber else (state.mobileHint ?: "")
+                if (displayPhone.isNotBlank()) {
+                    Text(
+                        text = if (displayPhone.startsWith("+")) displayPhone else "+91 $displayPhone",
+                        color = GoldPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(28.dp))
 
@@ -220,7 +212,6 @@ fun TvOtpScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Success message / error (shown once)
                 state.message?.let { message ->
                     Spacer(modifier = Modifier.height(14.dp))
                     Text(
@@ -239,20 +230,55 @@ fun TvOtpScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                TvKey(
-                    modifier = Modifier.height(52.dp),
-                    enabled = !state.isLoading,
-                    onClick = { onIntent(OtpIntent.ResendClicked) }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Resend code",
-                        color = orange,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
+                    TvKey(
+                        modifier = Modifier.height(48.dp),
+                        enabled = !state.isLoading,
+                        onClick = { onIntent(OtpIntent.BackClicked) }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.chevron_left),
+                                contentDescription = null,
+                                tint = Color(0xFF9E988D),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Change phone number",
+                                color = Color(0xFF9E988D),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    val formattedTime = String.format("00:%02d", resendTimer)
+
+                    TvKey(
+                        modifier = Modifier.height(48.dp),
+                        enabled = !state.isLoading && resendTimer == 0,
+                        onClick = {
+                            resendTimer = 30
+                            onIntent(OtpIntent.ResendClicked)
+                        }
+                    ) {
+                        Text(
+                            text = if (resendTimer > 0) "Resend code in $formattedTime" else "Resend code",
+                            color = if (resendTimer > 0) Color(0xFF9E988D) else GoldPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
                 }
             }
 
@@ -303,7 +329,7 @@ fun TvOtpScreen(
                         onClick = { backspace() }
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Backspace,
+                            painter = painterResource(id = R.drawable.ic_backspace),
                             contentDescription = "Delete",
                             tint = Color.White,
                             modifier = Modifier.size(28.dp)
@@ -342,19 +368,94 @@ fun TvOtpScreen(
                 TvKey(
                     modifier = Modifier
                         .width(KEYPAD_WIDTH)
-                        .height(60.dp),
+                        .height(56.dp),
                     focusRequester = verifyFocus,
                     enabled = verifyEnabled,
                     accent = true,
                     onClick = { onIntent(OtpIntent.VerifyClicked) }
                 ) {
                     Text(
-                        text = if (state.isLoading) "Verifying..." else "Verify & Continue",
-                        color = if (verifyEnabled) Color.White else Color.Gray,
-                        fontSize = 20.sp,
+                        text = if (state.isLoading) "Verifying..." else "Verify OTP",
+                        color = Color(0xFF140E02),
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+        }
+
+        if (state.isSuccess) {
+            TvLoginSuccessDialog()
+        }
+    }
+}
+
+@Composable
+private fun TvLoginSuccessDialog() {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 380.dp)
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 24.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    spotColor = GoldPrimary.copy(alpha = 0.35f),
+                    ambientColor = GoldPrimary.copy(alpha = 0.20f)
+                )
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF161412))
+                .border(
+                    width = 1.dp,
+                    color = GoldPrimary,
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .padding(horizontal = 28.dp, vertical = 32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, GoldPrimary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.checkmark),
+                        contentDescription = "Success",
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "Login Successful!",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.3.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "You have logged in successfully.",
+                    color = Color(0xFF9E988D),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal
+                )
             }
         }
     }
@@ -373,8 +474,8 @@ private fun OtpBoxes(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.widthIn(max = 440.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         repeat(OTP_LENGTH) { index ->
 
@@ -387,11 +488,12 @@ private fun OtpBoxes(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .aspectRatio(1f)
-                    .background(OtpBoxBg, RoundedCornerShape(14.dp))
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(OtpBoxBg)
                     .border(
-                        width = 2.dp,
-                        color = if (isActive) VividOrange else OtpBoxBorder,
+                        width = if (isActive) 2.dp else 1.dp,
+                        color = if (isActive) GoldPrimary else OtpBoxBorder,
                         shape = RoundedCornerShape(14.dp)
                     ),
                 contentAlignment = Alignment.Center
@@ -399,7 +501,7 @@ private fun OtpBoxes(
                 Text(
                     text = char,
                     color = Color.White,
-                    fontSize = 28.sp,
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -409,7 +511,6 @@ private fun OtpBoxes(
 
 /**
  * Focusable button for D-pad use.
- * Focused: orange border (white for the accent button) and a slight zoom.
  */
 @Composable
 private fun TvKey(
@@ -427,18 +528,18 @@ private fun TvKey(
         label = "tvKeyScale"
     )
 
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(12.dp)
 
     val background = when {
-        accent && enabled -> orange
-        accent -> Color(0xFF261C38)
+        accent && enabled -> GoldPrimary
+        accent -> Color(0xFF382F23)
         isFocused -> KeyFocusedBg
         else -> KeyBg
     }
 
     val borderColor = when {
         isFocused && accent -> Color.White
-        isFocused -> orange
+        isFocused -> GoldPrimary
         else -> KeyBorder
     }
 
@@ -459,11 +560,10 @@ private fun TvKey(
             .clip(shape)
             .background(background)
             .border(
-                width = if (isFocused) 3.dp else 1.dp,
+                width = if (isFocused) 2.5.dp else 1.dp,
                 color = borderColor,
                 shape = shape
             )
-            // onFocusChanged must come before clickable (the focusable node)
             .onFocusChanged { isFocused = it.isFocused }
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,

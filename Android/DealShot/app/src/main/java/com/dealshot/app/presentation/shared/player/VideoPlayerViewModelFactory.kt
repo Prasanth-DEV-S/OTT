@@ -5,7 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import com.dealshot.app.data.remote.repository.WatchProgressRepository
 
 class VideoPlayerViewModelFactory(
-    private val watchProgressRepository: WatchProgressRepository
+    private val watchProgressRepository: WatchProgressRepository,
+    private val guestPreviewRepository: com.dealshot.app.data.preferences.GuestPreviewRepository
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -14,7 +15,8 @@ class VideoPlayerViewModelFactory(
     ): T {
         if (modelClass.isAssignableFrom(VideoPlayerViewModel::class.java)) {
             return VideoPlayerViewModel(
-                watchProgressRepository = watchProgressRepository
+                watchProgressRepository = watchProgressRepository,
+                guestPreviewRepository = guestPreviewRepository
             ) as T
         }
 

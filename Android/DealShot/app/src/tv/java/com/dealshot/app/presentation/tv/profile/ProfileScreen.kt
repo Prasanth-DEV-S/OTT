@@ -17,21 +17,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PhoneIphone
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -45,9 +37,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.dealshot.app.ui.theme.CardBgDark
+import com.dealshot.app.ui.theme.GoldPrimary
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -97,8 +95,21 @@ fun TvProfileScreen(
 
     BackHandler { onIntent(ProfileIntent.BackClicked) }
 
+    var showLogoutConfirm by remember { mutableStateOf(false) }
     val editFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { editFocus.requestFocus() } }
+
+    if (showLogoutConfirm) {
+        TvLogoutConfirmDialog(
+            onConfirm = {
+                showLogoutConfirm = false
+                onIntent(ProfileIntent.LogoutClicked)
+            },
+            onDismiss = {
+                showLogoutConfirm = false
+            }
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -175,7 +186,7 @@ fun TvProfileScreen(
                                 Spacer(Modifier.height(8.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = Icons.Default.PhoneIphone,
+                                        painter = painterResource(id = R.drawable.iphone),
                                         contentDescription = null,
                                         tint = TextSecondary,
                                         modifier = Modifier.size(20.dp)
@@ -195,7 +206,7 @@ fun TvProfileScreen(
 
                     TvActionButton(
                         text = if (state.isEditingProfile) "Cancel Editing" else "Edit Profile",
-                        icon = if (state.isEditingProfile) Icons.Default.Close else Icons.Default.Edit,
+                        iconResId = if (state.isEditingProfile) R.drawable.xmark else R.drawable.pencil,
                         onClick = {
                             if (state.isEditingProfile) {
                                 onIntent(ProfileIntent.CancelEditClicked)
@@ -209,7 +220,7 @@ fun TvProfileScreen(
                     if (state.isEditingProfile) {
                         TvActionButton(
                             text = "Save Profile",
-                            icon = Icons.Default.Save,
+                            iconResId = R.drawable.ic_save,
                             enabled = !state.isSaving,
                             showSpinner = state.isSaving,
                             onClick = { onIntent(ProfileIntent.SaveProfileClicked) }
@@ -218,8 +229,8 @@ fun TvProfileScreen(
 
                     TvActionButton(
                         text = "Logout",
-                        icon = Icons.AutoMirrored.Filled.Logout,
-                        onClick = { onIntent(ProfileIntent.LogoutClicked) }
+                        iconResId = R.drawable.rectangle_portrait_and_arrow_right,
+                        onClick = { showLogoutConfirm = true }
                     )
                 }
 
@@ -243,7 +254,7 @@ fun TvProfileScreen(
                     Spacer(Modifier.height(8.dp))
 
                     DetailRow(
-                        icon = Icons.Default.PhoneIphone,
+                        iconResId = R.drawable.iphone,
                         label = "Mobile Number",
                         value = state.phoneNumber.ifBlank { "Not available" },
                         trailing = {
@@ -258,7 +269,7 @@ fun TvProfileScreen(
                             .padding(vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconTile(Icons.Default.Email)
+                        IconTile(R.drawable.envelope)
                         Spacer(Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Email", color = TextMuted, fontSize = 15.sp)
@@ -290,7 +301,7 @@ fun TvProfileScreen(
                             .padding(vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconTile(Icons.Default.Language)
+                        IconTile(R.drawable.globe)
                         Spacer(Modifier.width(16.dp))
                         Text(
                             text = "Language",
@@ -334,7 +345,7 @@ fun TvProfileScreen(
                             )
                             TvActionButton(
                                 text = "Retry",
-                                icon = Icons.Default.Refresh,
+                                iconResId = R.drawable.arrow_right,
                                 fillWidth = false,
                                 onClick = { onIntent(ProfileIntent.RetryClicked) }
                             )
@@ -374,7 +385,7 @@ private fun TvAvatar(
         ) {
             if (imageUrl.isNullOrBlank()) {
                 Icon(
-                    imageVector = Icons.Default.Person,
+                    painter = painterResource(id = R.drawable.person_crop_circle),
                     contentDescription = "Profile picture",
                     tint = Gold,
                     modifier = Modifier.size(58.dp)
@@ -450,7 +461,7 @@ private fun TvTextField(
 @Composable
 private fun TvActionButton(
     text: String,
-    icon: ImageVector,
+    iconResId: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -482,7 +493,7 @@ private fun TvActionButton(
             )
         } else {
             Icon(
-                imageVector = icon,
+                painter = painterResource(id = iconResId),
                 contentDescription = null,
                 tint = contentColor,
                 modifier = Modifier.size(22.dp)
@@ -500,7 +511,7 @@ private fun TvActionButton(
 
 @Composable
 private fun DetailRow(
-    icon: ImageVector,
+    iconResId: Int,
     label: String,
     value: String,
     trailing: @Composable (() -> Unit)? = null
@@ -512,7 +523,7 @@ private fun DetailRow(
                 .padding(vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconTile(icon)
+            IconTile(iconResId)
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = label, color = TextMuted, fontSize = 15.sp)
@@ -531,7 +542,7 @@ private fun DetailRow(
 }
 
 @Composable
-private fun IconTile(icon: ImageVector) {
+private fun IconTile(iconResId: Int) {
     Box(
         modifier = Modifier
             .size(52.dp)
@@ -541,7 +552,7 @@ private fun IconTile(icon: ImageVector) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = icon,
+            painter = painterResource(id = iconResId),
             contentDescription = null,
             tint = Gold,
             modifier = Modifier.size(24.dp)
@@ -559,10 +570,153 @@ private fun VerifiedBadge() {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Default.Check,
+            painter = painterResource(id = R.drawable.checkmark),
             contentDescription = "Verified",
             tint = OnlineGreen,
             modifier = Modifier.size(20.dp)
         )
+    }
+}
+
+@Composable
+private fun TvLogoutConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val confirmFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        runCatching { confirmFocusRequester.requestFocus() }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 420.dp)
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 24.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    spotColor = GoldPrimary.copy(alpha = 0.35f),
+                    ambientColor = GoldPrimary.copy(alpha = 0.20f)
+                )
+                .clip(RoundedCornerShape(20.dp))
+                .background(CardBgDark)
+                .border(
+                    width = 1.dp,
+                    color = GoldPrimary,
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .padding(horizontal = 28.dp, vertical = 32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, GoldPrimary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.rectangle_portrait_and_arrow_right),
+                        contentDescription = "Log out",
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "Log Out",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.3.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Are you sure you want to log out of your DealShot account?",
+                    color = TextMuted,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    var isCancelFocused by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isCancelFocused) Color(0xFF7A1515) else Color(0xFF231F1A))
+                            .border(
+                                width = if (isCancelFocused) 2.5.dp else 1.dp,
+                                color = if (isCancelFocused) GoldPrimary else Color(0xFF383025),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .onFocusChanged { isCancelFocused = it.isFocused }
+                            .clickable { onDismiss() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    var isConfirmFocused by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .focusRequester(confirmFocusRequester)
+                            .onFocusChanged { isConfirmFocused = it.isFocused }
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isConfirmFocused) {
+                                    Brush.horizontalGradient(listOf(Color(0xFF7A1515), Color(0xFF3B0B0B)))
+                                } else {
+                                    Brush.horizontalGradient(listOf(Color(0xFFE8C575), Color(0xFFC9942C), Color(0xFF9E6B15)))
+                                }
+                            )
+                            .border(
+                                width = if (isConfirmFocused) 2.5.dp else 0.dp,
+                                color = if (isConfirmFocused) GoldPrimary else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable { onConfirm() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Log Out",
+                            color = if (isConfirmFocused) Color.White else Color(0xFF140E02),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
     }
 }

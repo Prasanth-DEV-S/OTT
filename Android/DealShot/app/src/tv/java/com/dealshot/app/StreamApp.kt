@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -36,13 +37,13 @@ import com.dealshot.app.data.remote.repository.VideoRepositoryImpl
 import com.dealshot.app.data.remote.repository.WatchProgressRepositoryImpl
 import com.dealshot.app.data.video.Video
 import com.dealshot.app.presentation.shared.auth.SessionViewModelFactory
-import com.dealshot.app.presentation.shared.likeAndList.SavedVideosViewModel
+import com.dealshot.app.presentation.shared.myList.SavedVideosViewModel
 import com.dealshot.app.presentation.shared.player.VideoPlayerViewModelFactory
 import com.dealshot.app.presentation.tv.category.TvCategoryRoute
 import com.dealshot.app.presentation.tv.details.TvDetailsRoute
 import com.dealshot.app.presentation.tv.home.TvHomeRoute
 import com.dealshot.app.presentation.tv.home.TvSessionRoute
-import com.dealshot.app.presentation.tv.likeAndList.TvVideoCollectionRoute
+import com.dealshot.app.presentation.tv.myList.TvVideoCollectionRoute
 import com.dealshot.app.presentation.tv.login.TvLoginRoute
 import com.dealshot.app.presentation.tv.otp.TvOtpRoute
 import com.dealshot.app.presentation.tv.player.TvPlayerRoute
@@ -55,8 +56,11 @@ import kotlinx.coroutines.launch
 private object TvRoutes {
 
     const val START = "start"
-    const val LOGIN = "login"
-    const val OTP = "otp/{phoneNumber}/{mobileHint}"
+    const val LOGIN = "login?redirect={redirect}"
+    fun login(redirect: String? = null): String {
+        return if (redirect != null) "login?redirect=$redirect" else "login"
+    }
+    const val OTP = "otp/{phoneNumber}/{mobileHint}?redirect={redirect}"
     const val HOME = "home/{phoneNumber}"
     const val PROFILE = "profile"
     const val LIKED_VIDEOS = "liked_videos"
@@ -65,8 +69,8 @@ private object TvRoutes {
     const val DETAILS = "details/{videoId}"
     const val PLAYER = "player/{videoId}"
 
-    fun otp(phoneNumber: String, mobileHint: String): String =
-        "otp/${Uri.encode(phoneNumber)}/${Uri.encode(mobileHint)}"
+    fun otp(phoneNumber: String, mobileHint: String, redirect: String? = null): String =
+        if (redirect != null) "otp/${Uri.encode(phoneNumber)}/${Uri.encode(mobileHint)}?redirect=$redirect" else "otp/${Uri.encode(phoneNumber)}/${Uri.encode(mobileHint)}"
 
     fun home(phoneNumber: String): String = "home/${Uri.encode(phoneNumber)}"
 
@@ -124,6 +128,10 @@ fun StreamApp() {
     val watchProgressRepository = remember {
         WatchProgressRepositoryImpl(api = watchProgressApiService)
     }
+    
+    val guestPreviewRepository = remember {
+        com.dealshot.app.data.preferences.GuestPreviewRepositoryImpl(context)
+    }
 
     val authRepository = remember {
         AuthRepositoryImpl(ApiClient.authApi)
@@ -157,7 +165,10 @@ fun StreamApp() {
 
         NavHost(
             navController = navController,
-            startDestination = TvRoutes.START
+            startDestination = TvRoutes.START,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
         ) {
 
             // START (session check)
@@ -186,13 +197,24 @@ fun StreamApp() {
             }
 
             // LOGIN
-            composable(TvRoutes.LOGIN) {
+            composable(
+                route = TvRoutes.LOGIN,
+                arguments = listOf(
+                    navArgument("redirect") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val redirect = backStackEntry.arguments?.getString("redirect")
                 TvLoginRoute(
                     onNavigateToOtp = { phoneNumber, mobileHint ->
                         navController.navigate(
                             TvRoutes.otp(
                                 phoneNumber = phoneNumber,
-                                mobileHint = mobileHint
+                                mobileHint = mobileHint,
+                                redirect = redirect
                             )
                         )
                     }
@@ -204,7 +226,8 @@ fun StreamApp() {
                 route = TvRoutes.OTP,
                 arguments = listOf(
                     navArgument("phoneNumber") { type = NavType.StringType },
-                    navArgument("mobileHint") { type = NavType.StringType }
+                    navArgument("mobileHint") { type = NavType.StringType },
+                    navArgument("redirect") { type = NavType.StringType; nullable = true; defaultValue = null }
                 )
             ) { backStackEntry ->
 
@@ -214,14 +237,27 @@ fun StreamApp() {
                 val mobileHint =
                     backStackEntry.arguments?.getString("mobileHint").orEmpty()
 
+                val redirect = backStackEntry.arguments?.getString("redirect")
+
                 TvOtpRoute(
                     phoneNumber = phoneNumber,
                     mobileHint = mobileHint,
 
                     onNavigateToHome = {
-                        navController.navigate(TvRoutes.home(phoneNumber)) {
-                            popUpTo(TvRoutes.LOGIN) { inclusive = true }
-                            launchSingleTop = true
+                        val pendingState = guestPreviewRepository.getPendingResumeState()
+                        val targetScreen = pendingState?.screen ?: redirect
+
+                        if (targetScreen != null && (targetScreen.startsWith("player") || targetScreen.startsWith("details"))) {
+                            guestPreviewRepository.clearPendingResumeState()
+                            
+                            // Pop both OTP and Login off the stack to return to the player/details
+                            navController.popBackStack(TvRoutes.LOGIN, inclusive = true)
+                        } else {
+                            guestPreviewRepository.clearPendingResumeState()
+                            navController.navigate(TvRoutes.home(phoneNumber)) {
+                                popUpTo(TvRoutes.LOGIN) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     },
 
@@ -370,7 +406,7 @@ fun StreamApp() {
                 val myListViewModel: SavedVideosViewModel = viewModel {
                     SavedVideosViewModel(
                         repository = repository,
-                        collection = SavedVideoCollection.WATCH_LATER
+                        collection = SavedVideoCollection.MY_LIST
                     )
                 }
 
@@ -430,8 +466,7 @@ fun StreamApp() {
                                 navController.navigate(TvRoutes.player(loaded.id))
                             },
                             onOpenLogin = {
-                                navController.navigate(TvRoutes.LOGIN) {
-                                    popUpTo(TvRoutes.HOME) { inclusive = true }
+                                navController.navigate(TvRoutes.login(redirect = "details")) {
                                     launchSingleTop = true
                                 }
                             }
@@ -487,16 +522,20 @@ fun StreamApp() {
                     loaded != null -> {
                         TvPlayerRoute(
                             video = loaded,
-                            onBack = { navController.popBackStack() },
+                            onBack = {
+                                navController.navigate(TvRoutes.home("")) {
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            },
                             viewModelFactory = VideoPlayerViewModelFactory(
-                                watchProgressRepository = watchProgressRepository
+                                watchProgressRepository = watchProgressRepository,
+                                guestPreviewRepository = guestPreviewRepository
                             ),
                             onOpenSubscription = { selectedVideo ->
-                                openSubscription(
-                                    selectedVideo.title,
-                                    selectedVideo.description,
-                                    selectedVideo.url
-                                )
+                                navController.navigate(TvRoutes.login(redirect = "player")) {
+                                    launchSingleTop = true
+                                }
                             }
                         )
                     }

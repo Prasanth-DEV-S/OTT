@@ -12,6 +12,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
@@ -31,6 +33,34 @@ class ProfileViewModel(
     private var emailBeforeEdit = _uiState.value.email
     private var imageBeforeEdit = _uiState.value.profileImageUrl
     val effect = _effect.receiveAsFlow()
+
+    init {
+        viewModelScope.launch {
+            combine(
+                userPreferences.mobileNumber,
+                userPreferences.userName,
+                userPreferences.email,
+                userPreferences.avatarUrl
+            ) { mobile, name, email, avatar ->
+                val finalMobile = mobile.orEmpty()
+                val finalName = when {
+                    !name.isNullOrBlank() && name != "User Name" && name != "Guest" -> name
+                    finalMobile.length >= 4 -> "User ${finalMobile.takeLast(4)}"
+                    else -> ""
+                }
+
+                _uiState.update { state ->
+                    state.copy(
+                        phoneNumber = finalMobile,
+                        username = if (state.username.isBlank() || state.username == "Guest" || state.username == "User Name") finalName else state.username,
+                        email = state.email.ifBlank { email.orEmpty() },
+                        avatar = state.avatar.ifBlank { avatar.orEmpty() },
+                        profileImageUrl = state.profileImageUrl ?: avatar?.takeIf { it.isNotBlank() }
+                    )
+                }
+            }.collect {}
+        }
+    }
 
     fun onIntent(intent: ProfileIntent) {
         when (intent) {
@@ -145,10 +175,25 @@ class ProfileViewModel(
             ProfileIntent.HelpCenterClicked ->
                 sendEffect(ProfileEffect.OpenHelpCenter)
 
-            ProfileIntent.LogoutClicked -> sendEffect(ProfileEffect.Logout)
+            ProfileIntent.LogoutClicked -> {
+                viewModelScope.launch {
+                    userPreferences.clearUser()
+                    _uiState.update {
+                        ProfileState()
+                    }
+                    _effect.send(ProfileEffect.Logout)
+                }
+            }
 
-            ProfileIntent.DeleteAccountClicked ->
-                sendEffect(ProfileEffect.DeleteAccount)
+            ProfileIntent.DeleteAccountClicked -> {
+                viewModelScope.launch {
+                    userPreferences.clearUser()
+                    _uiState.update {
+                        ProfileState()
+                    }
+                    _effect.send(ProfileEffect.DeleteAccount)
+                }
+            }
 
             ProfileIntent.ClearError -> {
                 _uiState.update { it.copy(error = null) }
@@ -163,27 +208,64 @@ class ProfileViewModel(
     }
 
     private fun loadProfiles() {
-        if (_uiState.value.isLoading) return
-
         viewModelScope.launch {
+            // Step 1: Immediately load cached session data from DataStore
+            val mobileNumber = userPreferences.mobileNumber.first().orEmpty()
+            val userEmail = userPreferences.email.first().orEmpty()
+            val userName = userPreferences.userName.first().orEmpty()
+            val cachedAvatar = userPreferences.avatarUrl.first().orEmpty()
+
+            // Update UI state instantly with cached static session data
+            _uiState.update { state ->
+                state.copy(
+                    phoneNumber = mobileNumber,
+                    email = state.email.ifBlank { userEmail },
+                    username = state.username.ifBlank { userName },
+                    avatar = state.avatar.ifBlank { cachedAvatar },
+                    profileImageUrl = state.profileImageUrl ?: cachedAvatar.takeIf { it.isNotBlank() }
+                )
+            }
+
+            // If user is not logged in / no mobile number in session, finish loading without making API calls
+            if (mobileNumber.isBlank()) {
+                _uiState.update { it.copy(isLoading = false, error = null) }
+                return@launch
+            }
+
+            // Step 2: Fetch profiles from backend API if not already loaded
+            if (_uiState.value.profiles.isNotEmpty()) {
+                _uiState.update { it.copy(isLoading = false) }
+                return@launch
+            }
+
             _uiState.update { it.copy(isLoading = true, error = null) }
 
             try {
-                val mobileNumber = userPreferences.mobileNumber.first().orEmpty()
-                val userEmail = userPreferences.email.first().orEmpty()
                 val profilesList = profileRepository.getProfiles()
                 val selected = profilesList.firstOrNull { it.isDefault }
                     ?: profilesList.firstOrNull()
+
+                val finalName = selected?.name?.takeIf { it.isNotBlank() } ?: userName
+                val finalEmail = selected?.email?.takeIf { it.isNotBlank() } ?: userEmail
+                val finalAvatar = selected?.avatar.orEmpty().ifBlank { cachedAvatar }
+
+                // Cache fresh profile details back to DataStore
+                userPreferences.saveProfileData(
+                    name = finalName,
+                    email = finalEmail,
+                    avatar = finalAvatar
+                )
 
                 _uiState.update { state ->
                     state.copy(
                         isLoading = false,
                         phoneNumber = mobileNumber,
-                        email = selected?.email?.takeIf { it.isNotBlank() } ?: userEmail,
+                        email = finalEmail,
                         profiles = profilesList,
                         selectedProfile = selected,
-                        username = selected?.name ?: state.username,
-                        avatar = selected?.avatar.orEmpty(),
+                        username = finalName,
+                        avatar = finalAvatar,
+                        profileImageUrl = state.profileImageUrl ?: finalAvatar.takeIf { it.isNotBlank() },
                         isKidsProfile = selected?.isKidsProfile ?: false,
                         language = selected?.language ?: "en",
                         maturityLevel = selected?.maturityLevel ?: "adult",
@@ -195,7 +277,8 @@ class ProfileViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                handleError(e)
+                // If API fails (e.g. offline), retain the cached local session without locking out the user
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }

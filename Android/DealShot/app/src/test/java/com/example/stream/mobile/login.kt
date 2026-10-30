@@ -57,7 +57,7 @@ class LoginScreenTest {
         setScreen(LoginState(phoneNumber = ""))
 
         composeRule.onNodeWithText("DealShot").assertExists()
-        composeRule.onNodeWithText("Sign in to continue").assertExists()
+        composeRule.onNodeWithText("sign in to watch premium stories ").assertExists()
     }
 
     @Test

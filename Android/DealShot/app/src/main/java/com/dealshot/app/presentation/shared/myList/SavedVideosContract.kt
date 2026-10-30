@@ -1,6 +1,16 @@
-package com.dealshot.app.presentation.shared.likeAndList
+package com.dealshot.app.presentation.shared.myList
 
 import com.dealshot.app.data.remote.dto.VideoDto
+
+
+data class SavedLikedVideosState(
+    val videos: List<VideoDto> = emptyList(),
+    val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
+    val isUpdating: Boolean = false,
+    val error: String? = null,
+    val message: String? = null
+)
 
 data class SavedVideosState(
     val videos: List<VideoDto> = emptyList(),
@@ -11,6 +21,26 @@ data class SavedVideosState(
     val removingIds: Set<String> = emptySet(),
     val addedIds: Set<String> = emptySet()
 )
+
+
+
+sealed interface SavedLikedVideosIntent {
+
+    data object LoadVideos : SavedLikedVideosIntent
+
+    data object RefreshVideos : SavedLikedVideosIntent
+
+    data class AddVideo(
+        val videoId: String
+    ) : SavedLikedVideosIntent
+
+    data class RemoveVideo(
+        val videoId: String
+    ) : SavedLikedVideosIntent
+
+    data object ClearMessage : SavedLikedVideosIntent
+}
+
 
 sealed interface SavedVideosIntent {
     data object Load : SavedVideosIntent

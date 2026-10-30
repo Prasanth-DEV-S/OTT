@@ -28,7 +28,7 @@ class UserPreferences(
         private val USER_ID =
             stringPreferencesKey("user_id")
 
-        private val MOBILE_NUMBER =
+         val MOBILE_NUMBER =
             stringPreferencesKey("mobile_number")
 
         private val USER_ROLE =
@@ -45,6 +45,7 @@ class UserPreferences(
         private val MOBILE = stringPreferencesKey("mobile")
         private val EMAIL = stringPreferencesKey("email")
         private val ROLE = stringPreferencesKey("role")
+        private val AVATAR_URL = stringPreferencesKey("avatar_url")
 
         private val IS_MOBILE_VERIFIED =
             booleanPreferencesKey("is_mobile_verified")
@@ -116,6 +117,8 @@ class UserPreferences(
             preferences[SUBSCRIPTION_STATUS] = subscriptionStatus
             preferences[LAST_LOGIN_AT] = lastLoginAt
         }
+        PreferenceManager(context).saveString("Mobile_No", mobile)
+        PreferenceManager(context).saveString("token", token)
     }
 
     suspend fun updateLastActivity() {
@@ -141,6 +144,14 @@ class UserPreferences(
         }
 
     /**
+     * Logged-in user name.
+     */
+    val userName: Flow<String?> =
+        context.dataStore.data.map { preferences ->
+            preferences[USER_NAME]
+        }
+
+    /**
      * Logged-in mobile number.
      */
     val mobileNumber: Flow<String?> =
@@ -155,6 +166,29 @@ class UserPreferences(
         context.dataStore.data.map { preferences ->
             preferences[EMAIL]
         }
+
+    /**
+     * Logged-in profile avatar URL.
+     */
+    val avatarUrl: Flow<String?> =
+        context.dataStore.data.map { preferences ->
+            preferences[AVATAR_URL]
+        }
+
+    /**
+     * Update/Cache profile details in DataStore preferences.
+     */
+    suspend fun saveProfileData(
+        name: String,
+        email: String,
+        avatar: String
+    ) {
+        context.dataStore.edit { preferences ->
+            if (name.isNotBlank()) preferences[USER_NAME] = name
+            if (email.isNotBlank()) preferences[EMAIL] = email
+            if (avatar.isNotBlank()) preferences[AVATAR_URL] = avatar
+        }
+    }
 
     /**
      * Logged-in user role.
@@ -207,6 +241,7 @@ class UserPreferences(
             preferences.remove(MOBILE)
             preferences.remove(EMAIL)
             preferences.remove(ROLE)
+            preferences.remove(AVATAR_URL)
             preferences.remove(IS_MOBILE_VERIFIED)
 
             preferences.remove(MAX_PROFILES)
@@ -220,6 +255,7 @@ class UserPreferences(
 
             preferences.remove(LAST_LOGIN_AT)
         }
+        PreferenceManager(context).saveString("Mobile_No", "")
     }
 
 }

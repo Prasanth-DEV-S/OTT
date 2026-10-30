@@ -2,15 +2,20 @@ package com.dealshot.app.presentation.shared.home
 
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.StarOutline
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
+import com.dealshot.app.R
 import com.dealshot.app.core.error.AppErrorHandler
 import com.dealshot.app.data.preferences.UserPreferences
 import com.dealshot.app.data.remote.dto.VideoDto
 import com.dealshot.app.data.remote.repository.VideoRepository
 import com.dealshot.app.data.remote.repository.SavedVideosRepository
-import com.dealshot.app.data.remote.repository.SavedVideoCollection
 import retrofit2.HttpException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -150,14 +155,19 @@ class HomeViewModel(
     ): List<String> {
         return buildList {
             add("Home")
+            add("National")
+            add("International")
+            add("Motivation")
+            add("Inspirational")
+            add("Academic")
 
-            addAll(
+          /*  addAll(
                 categories
                     .map { it.name.trim() }
                     .filter { it.isNotBlank() }
                     .distinct()
                     .sorted()
-            )
+            )*/
 
             // Uncomment if you want Premium to appear only when premium videos exist.
             // if (allVideos.any { it.isPremium }) {
@@ -169,7 +179,7 @@ class HomeViewModel(
     private suspend fun loadMyWatchLaterIds() {
         try {
             val ids = savedVideosRepository
-                .getVideos(SavedVideoCollection.WATCH_LATER)
+                .getVideos()
                 .map { it.id }
                 .toSet()
             _uiState.update { it.copy(myWatchLaterVideoIds = ids) }
@@ -233,7 +243,7 @@ class HomeViewModel(
                         videos.takeLast(6)
 
                     val savedVideos = try {
-                        savedVideosRepository.getVideos(SavedVideoCollection.WATCH_LATER)
+                        savedVideosRepository.getVideos()
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -266,6 +276,7 @@ class HomeViewModel(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    Log.e("HomeViewModel", "Error loading home videos", e)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -365,11 +376,11 @@ class HomeViewModel(
 
         viewModelScope.launch {
             try {
-                /*if (isSaved) {
-                    savedVideosRepository.removeVideo(SavedVideoCollection.WATCH_LATER, videoId)
-                } else {*/
-                    savedVideosRepository.addVideo(SavedVideoCollection.WATCH_LATER, videoId)
-//                }
+                if (isSaved) {
+                    savedVideosRepository.removeVideo(videoId)
+                } else {
+                    savedVideosRepository.addVideo(videoId)
+               }
 
                 _uiState.update {
                     it.copy(
@@ -383,7 +394,7 @@ class HomeViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message ?: "Unable to update My List.") }
+                _uiState.update { it.copy(error = AppErrorHandler.getUserMessage(e)) }
             } finally {
                 _uiState.update {
                     it.copy(updatingMyWatchLaterVideoIds = it.updatingMyWatchLaterVideoIds - videoId)
@@ -399,7 +410,7 @@ class HomeViewModel(
             }
 
             try {
-                val response = videoRepository.getVideoCategories()
+                var response = videoRepository.getVideoCategories()
 
                 val categories = response
                     .mapNotNull { category ->

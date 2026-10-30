@@ -10,6 +10,8 @@ data class VideoPlayerState(
     val position: Long = 0L,
 
     val isPremiumUser: Boolean = false,
+    val isLoggedIn: Boolean = false,
+    val isPreviewExhausted: Boolean = false,
 
     // Player state
     val isPlaying: Boolean = true,

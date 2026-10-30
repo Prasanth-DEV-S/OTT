@@ -10,11 +10,13 @@ data class SubscriptionPlan(
     val price: Int,
     val currency: String,
     val durationDays: Int,
-    val maxDevices: Int,
-    val maxProfiles: Int,
-    val simultaneousStreams: Int,
-    val videoQuality: String,
-    val hasPremiumContent: Boolean
+    val hdAvailable: Boolean = false,
+    val hdr4kAvailable: Boolean = false,
+    val watchOnLaptopAndTV: Boolean = false,
+    val watchOnMobileAndTablet: Boolean = false,
+    val simultaneousStreams: Int = 1,
+    val isActive: Boolean = true,
+    val sortOrder: Int = 0
 )
 
 fun SubscriptionPlanDto.toDomain(): SubscriptionPlan {
@@ -25,11 +27,13 @@ fun SubscriptionPlanDto.toDomain(): SubscriptionPlan {
         description = description,
         price = price,
         currency = currency,
-        durationDays = durationDays,
-        maxDevices = maxDevices,
-        maxProfiles = maxProfiles,
+        durationDays = durationInDays,
+        hdAvailable = hdAvailable,
+        hdr4kAvailable = hdr4kAvailable,
+        watchOnLaptopAndTV = watchOnLaptopAndTV,
+        watchOnMobileAndTablet = watchOnMobileAndTablet,
         simultaneousStreams = simultaneousStreams,
-        videoQuality = videoQuality,
-        hasPremiumContent = hasPremiumContent
+        isActive = isActive,
+        sortOrder = sortOrder
     )
 }

@@ -6,76 +6,38 @@ import retrofit2.HttpException
 
 enum class SavedVideoCollection(val path: String) {
     MY_LIST("my-list"),
-    WATCH_LATER("watch-later")
+    LIKED("like")
 }
 
 interface SavedVideosRepository {
-    suspend fun getVideos(
-        collection: SavedVideoCollection
-    ): List<VideoDto>
+    suspend fun getVideos(collection: SavedVideoCollection = SavedVideoCollection.MY_LIST): List<VideoDto>
 
-    suspend fun addVideo(
-        collection: SavedVideoCollection,
-        videoId: String
-    ): VideoDto?
+    suspend fun addVideo(videoId: String, collection: SavedVideoCollection = SavedVideoCollection.MY_LIST): VideoDto?
 
-    suspend fun removeVideo(
-        collection: SavedVideoCollection,
-        videoId: String
-    ): String
+    suspend fun removeVideo(videoId: String, collection: SavedVideoCollection = SavedVideoCollection.MY_LIST): String
 }
 
 class SavedVideosRepositoryImpl(
     private val api: SavedVideosApiService
 ) : SavedVideosRepository {
 
-    override suspend fun getVideos(
-        collection: SavedVideoCollection
-    ): List<VideoDto> {
-        if (collection == SavedVideoCollection.MY_LIST) {
-            val response = api.getLikedVideos()
+    override suspend fun getVideos(collection: SavedVideoCollection): List<VideoDto> {
+        val response = api.getSavedVideos(collection.path)
 
-            if (!response.isSuccessful) {
-                throw HttpException(response)
-            }
-
-            val body = response.body()
-                ?: throw IllegalStateException("Unable to load liked videos.")
-
-            if (!body.success) {
-                throw IllegalStateException("Unable to load liked videos.")
-            }
-
-            return body.videos
-        } else {
-            val response = api.getSavedVideos(collection.path)
-
-            if (!response.isSuccessful) {
-                throw HttpException(response)
-            }
-
-            val body = response.body()
-                ?: throw IllegalStateException("Unable to load saved videos.")
-
-            if (!body.success) {
-                throw IllegalStateException("Unable to load saved videos.")
-            }
-
-            return body.data.map { item ->
-                item.videoId
-            }
+        if (!response.isSuccessful) {
+            throw HttpException(response)
         }
+
+        val body = response.body()
+        if (body == null || !body.success) {
+            throw IllegalStateException("Unable to load videos.")
+        }
+
+        return body.data.map { it.videoId }
     }
 
-    override suspend fun addVideo(
-        collection: SavedVideoCollection,
-        videoId: String
-    ): VideoDto? {
-        val response = if (collection == SavedVideoCollection.MY_LIST) {
-            api.likeVideo(videoId)
-        } else {
-            api.addVideo(collection.path, videoId)
-        }
+    override suspend fun addVideo(videoId: String, collection: SavedVideoCollection): VideoDto? {
+        val response = api.addVideo(collection.path, videoId)
 
         if (!response.isSuccessful) {
             throw HttpException(response)
@@ -91,15 +53,8 @@ class SavedVideosRepositoryImpl(
         return body.data
     }
 
-    override suspend fun removeVideo(
-        collection: SavedVideoCollection,
-        videoId: String
-    ): String {
-        val response = if (collection == SavedVideoCollection.MY_LIST) {
-            api.unlikeVideo(videoId)
-        } else {
-            api.removeVideo(collection.path, videoId)
-        }
+    override suspend fun removeVideo(videoId: String, collection: SavedVideoCollection): String {
+        val response = api.addVideo(collection.path, videoId)
 
         if (!response.isSuccessful) {
             throw HttpException(response)

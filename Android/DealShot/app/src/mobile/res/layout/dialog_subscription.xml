@@ -21,6 +21,7 @@
         android:textStyle="bold" />
 
     <!-- Message Content -->
+    <!--        android:text="Your 15-second preview has ended. Choose a subscription plan to watch the full video."-->
     <TextView
         android:id="@+id/dialog_message"
         android:layout_width="match_parent"
@@ -29,7 +30,7 @@
         android:layout_marginTop="8dp"
         android:paddingHorizontal="24dp"
         android:paddingBottom="24dp"
-        android:text="Your 15-second preview has ended. Choose a subscription plan to watch the full video."
+        android:text="Your 30-second preview has ended. Login to watch the full video."
         android:textColor="#333333"
         android:textSize="15sp"
         android:lineSpacingMultiplier="1.1" />

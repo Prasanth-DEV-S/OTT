@@ -43,14 +43,7 @@ fun MobilePlayerRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
 
-    LaunchedEffect(viewModel) {
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                VideoPlayerEffect.NavigateBack -> onBack()
-                VideoPlayerEffect.OpenSubscription -> onOpenSubscription(video)
-            }
-        }
-    }
+
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -60,6 +53,8 @@ fun MobilePlayerRoute(
                 viewModel.onIntent(
                     VideoPlayerIntent.SaveProgressRequested
                 )
+            } else if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.onIntent(VideoPlayerIntent.CheckAuthStatus)
             }
         }
 
@@ -122,7 +117,7 @@ fun MobilePlayerRoute(
 
                 try {
                     setMediaItem(MediaItem.fromUri(targetUri))
-                    playWhenReady = true
+                    playWhenReady = false
                     prepare()
                 } catch (e: Exception) {
                     Log.e(
@@ -135,12 +130,23 @@ fun MobilePlayerRoute(
             }
     }
 
-    // Apply the restored position after the GET request completes.
-    // ExoPlayer accepts a pending seek before playback becomes ready.
-    LaunchedEffect(video.id, state.isProgressLoaded, state.position) {
-        if (state.isProgressLoaded && state.videoId == video.id.toString()) {
-            if (state.position > 0L) {
-                exoPlayer.seekTo(state.position)
+    LaunchedEffect(viewModel, exoPlayer) {
+        viewModel.effect.collect { effect ->
+            when (effect) {
+                VideoPlayerEffect.NavigateBack -> onBack()
+                VideoPlayerEffect.OpenSubscription -> onOpenSubscription(video)
+                is VideoPlayerEffect.PauseAndShowLogin -> {
+                    exoPlayer.pause()
+                    exoPlayer.seekTo(effect.limitMs)
+                }
+                is VideoPlayerEffect.ResumePlayback -> {
+                    if (effect.positionMs > 0L) {
+                        exoPlayer.seekTo(effect.positionMs)
+                    } else if (exoPlayer.currentPosition > 0L) {
+                        exoPlayer.seekTo(exoPlayer.currentPosition)
+                    }
+                    exoPlayer.play()
+                }
             }
         }
     }
@@ -157,6 +163,27 @@ fun MobilePlayerRoute(
         mutableStateOf<String?>(null)
     }
 
+    // Resume playback automatically when user logs in
+    LaunchedEffect(state.isLoggedIn) {
+        if (state.isLoggedIn) {
+            val targetPos = if (state.currentPlaybackPosition > 0L) {
+                state.currentPlaybackPosition
+            } else if (state.position > 0L) {
+                state.position
+            } else {
+                0L
+            }
+
+            if (targetPos > 0L) {
+                exoPlayer.seekTo(targetPos)
+            }
+            if (!state.showSubscriptionPopup) {
+                exoPlayer.play()
+            }
+        }
+    }
+
+    // Apply the restored position ONCE after progress is loaded.
     LaunchedEffect(
         video.id,
         state.videoId,
@@ -171,6 +198,11 @@ fun MobilePlayerRoute(
         ) {
             if (state.position > 0L) {
                 exoPlayer.seekTo(state.position)
+                if (!state.showSubscriptionPopup) {
+                    exoPlayer.play()
+                } else {
+                    exoPlayer.pause()
+                }
             }
 
             restoredVideoId = id
@@ -178,6 +210,7 @@ fun MobilePlayerRoute(
     }
 
     MobilePlayerScreen(
+        video = video,
         state = state,
         player = exoPlayer,
         onIntent = viewModel::onIntent

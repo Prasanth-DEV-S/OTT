@@ -11,33 +11,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-// Define your Orange Palette Colors
-// Define a true, deep orange color scheme (shifting away from amber/yellow)
-val TrueOrange = Color(0xFFE65100)          // A deep, rich, undeniable orange
-val VividOrange = Color(0xFFFF5722)         // Bright, fiery orange for secondary accents
-val DeepRustBg = Color(0xFF1A0F0A)          // Very dark, near-black with a rich copper tint
-val SoftOrangeBg = Color(0xFFFFF6F2)        // Soft, clean cream background with a touch of orange
-val SurfaceDarkf = Color(0xFF281912)         // Card surface with an orange-brown shade for dark mode
-val SurfaceLight = Color(0xFFFFFFFF)        // Surface card color for light mode
+// Define Gold Palette Colors
+val TrueOrange = GoldPrimary
+val VividOrange = GoldSecondary
+val DeepRustBg = DeepBlackBg
+val SoftOrangeBg = Color(0xFFFFFDF5)
+val SurfaceDarkf = SurfaceDarkGold
+val SurfaceLight = Color(0xFFFFFFFF)
 
 private val DarkColorScheme = darkColorScheme(
-    primary = TrueOrange,
-    secondary = VividOrange,
-    background = DeepRustBg,
-    surface = SurfaceDarkf,
-    onPrimary = Color.White,                // White text pops excellently on dark orange
+    primary = GoldPrimary,
+    secondary = GoldSecondary,
+    background = DeepBlackBg,
+    surface = SurfaceDarkGold,
+    onPrimary = Color(0xFF140E02),          // Dark text on gold button
     onBackground = Color.White,
     onSurface = Color.White
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = TrueOrange,
-    secondary = VividOrange,
+    primary = GoldPrimary,
+    secondary = GoldSecondary,
     background = SoftOrangeBg,
     surface = SurfaceLight,
-    onPrimary = Color.White,
-    onBackground = Color(0xFF281912),       // High contrast dark text for white backgrounds
-    onSurface = Color(0xFF281912)
+    onPrimary = Color(0xFF140E02),
+    onBackground = Color(0xFF161412),
+    onSurface = Color(0xFF161412)
 )
 
 /*private val DarkColorScheme = darkColorScheme(

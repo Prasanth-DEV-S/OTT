@@ -15,6 +15,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.dealshot.app.DealShotApplication
 import com.dealshot.app.data.preferences.UserPreferences
+import com.dealshot.app.data.remote.api.LikedVideosApiService
 import com.dealshot.app.data.remote.api.WatchProgressApiService
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -62,6 +63,7 @@ object ApiClient {
         ignoreUnknownKeys = true
         explicitNulls = false
         encodeDefaults = true
+        isLenient = true
     }
     private val retrofit = Retrofit.Builder()
         .baseUrl(BuildConfig.API_BASE_URL)
@@ -92,4 +94,7 @@ object ApiClient {
 
     val profileApiService: ProfileApiService =
         retrofit.create(ProfileApiService::class.java)
+
+    val likedVideosApiService: LikedVideosApiService =
+        retrofit.create(LikedVideosApiService::class.java)
 }

@@ -8,7 +8,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dealshot.app.data.remote.ApiClient.savedVideosApiService
 import com.dealshot.app.data.remote.ApiClient.videoDetailsApiService
+import com.dealshot.app.data.remote.ApiClient.likedVideosApiService
 import com.dealshot.app.data.remote.repository.SavedVideosRepositoryImpl
+import com.dealshot.app.data.remote.repository.like.LikedVideosRepositoryImpl
 import com.dealshot.app.data.remote.repository.VideoDetailsRepositoryImpl
 import com.dealshot.app.data.video.Video
 import com.dealshot.app.presentation.shared.details.DetailsEffect
@@ -37,10 +39,15 @@ fun TvDetailsRoute(
         SavedVideosRepositoryImpl(api = savedVideosApiService)
     }
 
-    val factory = remember(repository, savedVideosRepository) {
+    val likedVideosRepository = remember {
+        LikedVideosRepositoryImpl(api = likedVideosApiService)
+    }
+
+    val factory = remember(repository, savedVideosRepository, likedVideosRepository) {
         DetailsViewModelFactory(
             repository = repository,
-            savedVideosRepository = savedVideosRepository
+            savedVideosRepository = savedVideosRepository,
+            likedVideosRepository = likedVideosRepository
         )
     }
 

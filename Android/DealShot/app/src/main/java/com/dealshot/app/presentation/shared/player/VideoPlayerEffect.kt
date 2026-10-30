@@ -5,6 +5,9 @@ sealed interface VideoPlayerEffect {
     data object NavigateBack : VideoPlayerEffect
 
     data object OpenSubscription : VideoPlayerEffect
+    
+    data class PauseAndShowLogin(val limitMs: Long) : VideoPlayerEffect
+    data class ResumePlayback(val positionMs: Long = 0L) : VideoPlayerEffect
 }
 
 sealed interface WatchProgressEffect {

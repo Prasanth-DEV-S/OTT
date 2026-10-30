@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.Log
@@ -27,7 +29,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.dealshot.app.data.preferences.PreferenceManager
 import com.dealshot.app.data.preferences.UserPreferences
+import com.dealshot.app.data.preferences.UserPreferences.Companion.MOBILE_NUMBER
 import com.dealshot.app.data.remote.ApiClient
 import com.dealshot.app.data.remote.ApiClient.watchProgressApiService
 import com.dealshot.app.data.remote.dto.VideoDto
@@ -36,24 +40,32 @@ import com.dealshot.app.data.remote.repository.SavedVideoCollection
 import com.dealshot.app.data.remote.repository.SavedVideosRepositoryImpl
 import com.dealshot.app.data.remote.repository.VideoRepositoryImpl
 import com.dealshot.app.data.remote.repository.WatchProgressRepositoryImpl
+import com.dealshot.app.data.remote.repository.like.LikedVideosRepositoryImpl
 import com.dealshot.app.data.video.Video
-import com.dealshot.app.data.video.VideoRepository
 import com.dealshot.app.presentation.mobile.category.CategoryVideosRoute
 import com.dealshot.app.presentation.mobile.details.MobileDetailsRoute
 import com.dealshot.app.presentation.mobile.home.HomeRoute
 import com.dealshot.app.presentation.mobile.home.SessionRoute
-import com.dealshot.app.presentation.mobile.likeAndList.VideoCollectionRoute
+import com.dealshot.app.presentation.mobile.myList.LikedVideosRoute
+import com.dealshot.app.presentation.mobile.myList.VideoCollectionRoute
 import com.dealshot.app.presentation.mobile.login.LoginRoute
 import com.dealshot.app.presentation.mobile.otp.OtpRoute
 import com.dealshot.app.presentation.mobile.player.MobilePlayerRoute
 import com.dealshot.app.presentation.mobile.profile.ProfileRoute
+import com.dealshot.app.presentation.mobile.subscription.MobileSubscriptionRoute
 import com.dealshot.app.presentation.mobile.subscription.SubscriptionActivity
 import com.dealshot.app.presentation.shared.auth.SessionViewModelFactory
-import com.dealshot.app.presentation.shared.likeAndList.SavedVideosViewModel
+import com.dealshot.app.presentation.shared.like.LikedVideosViewModel
+import com.dealshot.app.presentation.shared.like.LikedVideosViewModelFactory
+import com.dealshot.app.presentation.shared.myList.SavedVideosViewModel
 import com.dealshot.app.presentation.shared.player.VideoPlayerViewModelFactory
+import com.dealshot.app.presentation.shared.profile.ProfileIntent
+import com.dealshot.app.presentation.shared.subscription.SubscriptionViewModel
 import com.dealshot.app.ui.theme.StreamTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
 private val Context.dataStore by preferencesDataStore(
     name = "streambox_preferences"
@@ -61,8 +73,11 @@ private val Context.dataStore by preferencesDataStore(
 
 private object StreamRoutes {
 
-    const val LOGIN = "login"
-    const val SUBSCRIPTION = "subscription"
+    const val LOGIN = "login?redirect={redirect}"
+    fun login(redirect: String? = null): String {
+        return if (redirect != null) "login?redirect=$redirect" else "login"
+    }
+    const val SUBSCRIPTION = "subscription/plans"
 
     const val PLAYER = "player/{videoId}"
     const val DETAILS = "details/{videoId}"
@@ -71,7 +86,7 @@ private object StreamRoutes {
     const val MY_LIST = "my_list"
 
     const val CATEGORY = "category/{category}"
-    const val OTP = "otp/{phoneNumber}/{mobileHint}"
+    const val OTP = "otp/{phoneNumber}/{mobileHint}?redirect={redirect}"
     fun player(videoId: String): String {
         return "player/$videoId"
     }
@@ -90,14 +105,25 @@ private object StreamRoutes {
 
     fun otp(
         phoneNumber: String,
-        mobileHint: String
+        mobileHint: String,
+        redirect: String? = null
     ): String {
-        return "otp/$phoneNumber/$mobileHint"
+        return if (redirect != null) "otp/$phoneNumber/$mobileHint?redirect=$redirect" else "otp/$phoneNumber/$mobileHint"
     }
     const val START = "start"
 
     const val PROFILE = "profile"
     const val WATCH_LATER = "watch_later"
+}
+suspend fun saveMobileNumber(number: String, context: Context ) {
+    context.dataStore.edit { preferences ->
+        preferences[MOBILE_NUMBER] = number
+    }
+}
+fun String.isValidIndianNumber(): Boolean {
+    // Allows the first digit to be ANY number (0-9), making your test number TRUE
+    val pattern = Regex("^(\\+?91)?\\d{10}$")
+    return this.matches(pattern)
 }
 
 @OptIn(UnstableApi::class)
@@ -111,6 +137,8 @@ fun StreamApp() {
     val watchProgressRepository = WatchProgressRepositoryImpl(
         api = watchProgressApiService
     )
+    
+    val guestPreviewRepository = com.dealshot.app.data.preferences.GuestPreviewRepositoryImpl(context)
 
 
     val authRepository = remember {
@@ -138,7 +166,10 @@ fun StreamApp() {
 
         NavHost(
             navController = navController,
-            startDestination = StreamRoutes.START
+            startDestination = StreamRoutes.START,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
         ) {
 
             composable(StreamRoutes.START) {
@@ -146,7 +177,7 @@ fun StreamApp() {
                     factory = sessionFactory,
 
                     onNavigateToLogin = {
-                        navController.navigate(StreamRoutes.LOGIN) {
+                        navController.navigate(StreamRoutes.HOME) {
                             popUpTo(StreamRoutes.START) {
                                 inclusive = true
                             }
@@ -172,15 +203,25 @@ fun StreamApp() {
             }
 
             // LOGIN
-            composable(StreamRoutes.LOGIN) {
-
+            composable(
+                route = StreamRoutes.LOGIN,
+                arguments = listOf(
+                    navArgument("redirect") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val redirect = backStackEntry.arguments?.getString("redirect")
                 LoginRoute(
                     onNavigateToOtp = { phoneNumber, mobileHint  ->
 
                         navController.navigate(
                             StreamRoutes.otp(
                                 phoneNumber = phoneNumber,
-                                mobileHint = mobileHint
+                                mobileHint = mobileHint,
+                                redirect = redirect
                             )
                         )
                     }
@@ -210,8 +251,13 @@ fun StreamApp() {
                     },
 
                     onLogout = {
-                        navController.navigate(StreamRoutes.LOGIN) {
-                            popUpTo(StreamRoutes.HOME) {
+                        coroutineScope.launch {
+                            userPreferences.clearUser()
+                        }
+                        PreferenceManager(context).clearAll()
+                        guestPreviewRepository.clearPendingResumeState()
+                        navController.navigate(StreamRoutes.home("")) {
+                            popUpTo(0) {
                                 inclusive = true
                             }
                             launchSingleTop = true
@@ -230,10 +276,19 @@ fun StreamApp() {
             )
             { backStackEntry ->
 
-                val phoneNumber =
+                var phoneNumber =
                     backStackEntry.arguments
                         ?.getString("phoneNumber")
                         .orEmpty()
+                val preferenceManager = PreferenceManager(context)
+                phoneNumber = if (phoneNumber.isValidIndianNumber()) {
+                    phoneNumber
+                }else{
+                    ""
+                }
+
+                preferenceManager.saveString("Mobile_No",phoneNumber)
+
 
                 HomeRoute(
                     mobileNumber = phoneNumber,
@@ -270,22 +325,25 @@ fun StreamApp() {
 
 
                     onNavigateToLogin = {
-
                         navController.navigate(
-                            StreamRoutes.LOGIN
-                        ) {
-                            popUpTo(
-                                StreamRoutes.HOME
-                            ) {
-                                inclusive = true
-                            }
-                        }
+                            StreamRoutes.login(redirect = "home")
+                        )
                     },
 
                     onOpenLiked = {
-                        navController.navigate(
-                            StreamRoutes.LIKED_VIDEOS
-                        )
+                        /*if(phoneNumber.isBlank()){
+                            navController.navigate(StreamRoutes.login()) {
+                                popUpTo(StreamRoutes.HOME) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }else {*/
+                            navController.navigate(
+                                StreamRoutes.LIKED_VIDEOS
+                            )
+//                        }
+
                     },
 
                     onOpenMyList = {
@@ -303,7 +361,12 @@ fun StreamApp() {
 
             // OTP
             composable(
-                route = StreamRoutes.OTP
+                route = StreamRoutes.OTP,
+                arguments = listOf(
+                    navArgument("phoneNumber") { type = NavType.StringType },
+                    navArgument("mobileHint") { type = NavType.StringType },
+                    navArgument("redirect") { type = NavType.StringType; nullable = true; defaultValue = null }
+                )
             )
             { backStackEntry ->
 
@@ -316,17 +379,27 @@ fun StreamApp() {
                     backStackEntry.arguments
                         ?.getString("mobileHint")
                         .orEmpty()
+                        
+                val redirect = backStackEntry.arguments?.getString("redirect")
 
                 OtpRoute(
                     phoneNumber = phoneNumber,
                     mobileHint = mobileHint,
 
                     onNavigateToHome = {
-                        navController.navigate(
-                            StreamRoutes.home(phoneNumber)
-                        ) {
-                            popUpTo(StreamRoutes.LOGIN) {
-                                inclusive = true
+                        val pendingState = guestPreviewRepository.getPendingResumeState()
+                        val targetScreen = pendingState?.screen ?: redirect
+
+                        if (targetScreen != null && (targetScreen.startsWith("player") || targetScreen.startsWith("details"))) {
+                            guestPreviewRepository.clearPendingResumeState()
+                            
+                            // Pop both OTP and Login off the stack to return to the player/details
+                            navController.popBackStack(StreamRoutes.LOGIN, inclusive = true)
+                        } else {
+                            guestPreviewRepository.clearPendingResumeState()
+                            navController.navigate(StreamRoutes.home(phoneNumber)) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
                             }
                         }
                     },
@@ -369,10 +442,45 @@ fun StreamApp() {
 
             // LIKED VIDEOS
             composable(StreamRoutes.LIKED_VIDEOS) {
+
+                val repository = remember {
+                    LikedVideosRepositoryImpl(
+                        api = ApiClient.likedVideosApiService
+                    )
+                }
+
+                val likedVideosViewModel: LikedVideosViewModel = viewModel(
+                    factory = LikedVideosViewModelFactory(repository)
+                )
+
+                LikedVideosRoute(
+                    viewModel = likedVideosViewModel,
+                    title = "Liked Videos",
+                    onHomeClick = {
+                        navController.popBackStack()
+                    },
+                    onVideoClick = { video ->
+//                        navController.navigate(
+//                            StreamRoutes.player(video.id)
+//                        )
+                        navController.navigate(
+                            StreamRoutes.details(video.id)
+                        )
+                    },
+                    onLoginClick = {
+                        navController.navigate(
+                            StreamRoutes.login(redirect = "liked_videos")
+                        ) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+/*            composable(StreamRoutes.LIKED_VIDEOS) {
                 val repository = remember {
                     SavedVideosRepositoryImpl(ApiClient.savedVideosApiService)
                 }
-
+//111111111111111111111111
                 val likedVideosViewModel: SavedVideosViewModel = viewModel {
                     SavedVideosViewModel(
                         repository = repository,
@@ -388,7 +496,7 @@ fun StreamApp() {
                         navController.navigate(StreamRoutes.player(video.id))
                     }
                 )
-            }
+            }*/
 
             // MY LIST
             composable(StreamRoutes.MY_LIST) {
@@ -399,7 +507,7 @@ fun StreamApp() {
                 val myListViewModel: SavedVideosViewModel = viewModel {
                     SavedVideosViewModel(
                         repository = repository,
-                        collection = SavedVideoCollection.WATCH_LATER
+                        collection = SavedVideoCollection.MY_LIST
                     )
                 }
 
@@ -408,7 +516,11 @@ fun StreamApp() {
                     title = "My List",
                     onHomeClick = { navController.popBackStack() },
                     onVideoClick = { video ->
-                        navController.navigate(StreamRoutes.player(video.id))
+//                        navController.navigate(StreamRoutes.player(video.id))
+
+                        navController.navigate(
+                            StreamRoutes.details(video.id)
+                        )
                     }
                 )
             }
@@ -417,7 +529,17 @@ fun StreamApp() {
             composable(
                 StreamRoutes.SUBSCRIPTION
             ) {
-                // Subscription screen
+                val subscriptionViewModel: SubscriptionViewModel = viewModel()
+
+                MobileSubscriptionRoute(
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onOpenPlayer = { _, _, _ ->
+                        navController.popBackStack()
+                    },
+                    viewModel = subscriptionViewModel
+                )
             }
 
             // DETAILS
@@ -477,6 +599,7 @@ fun StreamApp() {
                                 apiId = dto.id,
                                 thumbnailUrl = dto.thumbnailUrl.orEmpty(),
                                 isPremium = dto.isPremium,
+                                promoVideoUrl = dto.promoVideoUrl.orEmpty(),
                                 featured = dto.featured
                             )
 
@@ -550,10 +673,36 @@ fun StreamApp() {
                                 )
                             },
                             onLikeClick = {
-                                // Handled automatically via SavedVideosRepository in DetailsViewModel
+//                                navController.navigate(
+//                                    StreamRoutes.LOGIN
+//                                ) {
+//                                    popUpTo(
+//                                        StreamRoutes.HOME
+//                                    ) {
+//                                        inclusive = true
+//                                    }
+//                                }
                             },
                             onMyListClick = {
-                                // Handled automatically via SavedVideosRepository in DetailsViewModel
+//                                navController.navigate(
+//                                    StreamRoutes.LOGIN
+//                                ) {
+//                                    popUpTo(
+//                                        StreamRoutes.HOME
+//                                    ) {
+//                                        inclusive = true
+//                                    }
+//                                }
+                                  },
+                            onLoginClick = {
+                                navController.navigate(
+                                    StreamRoutes.login(redirect = "details")
+                                )
+                            },
+                            isPremiumUser = video!!.isPremium && false, // see note below
+                            onSubscribeClick = {
+                                navController.navigate(StreamRoutes.SUBSCRIPTION)
+                                //                                navController.navigate(StreamRoutes.SUBSCRIPTION)
                             }
                         )
                     }
@@ -623,7 +772,8 @@ fun StreamApp() {
                                 apiId = dto.id,
                                 thumbnailUrl = dto.thumbnailUrl.orEmpty(),
                                 isPremium = dto.isPremium,
-                                featured = dto.featured
+                                featured = dto.featured,
+                                promoVideoUrl = dto.promoVideoUrl.orEmpty()
                             )
 
                         } else {
@@ -665,40 +815,119 @@ fun StreamApp() {
 
                     video != null -> {
 
-                        MobilePlayerRoute(
+//                            MobilePlayerRoute(
+//                                video = video!!,
+//
+//                                onBack = {
+//                                    navController.navigate(StreamRoutes.home("")) {
+//                                        popUpTo(0) { inclusive = true }
+//                                        launchSingleTop = true
+//                                    }
+//                                },
+//                                viewModelFactory = VideoPlayerViewModelFactory(
+//                                watchProgressRepository = watchProgressRepository,
+//                                guestPreviewRepository = guestPreviewRepository
+//                            ),
+//
+//                            onOpenSubscription = {
+//                                navController.navigate(StreamRoutes.login(redirect = "player")) {
+//                                    launchSingleTop = true
+//                                }
+//                            }
+//                            /*Subscription to login 14102026*/
+//                            /*onOpenSubscription = { selectedVideo ->
+//
+//                                context.startActivity(
+//                                    Intent(
+//                                        context,
+//                                        SubscriptionActivity::class.java
+//                                    ).apply {
+//
+//                                        putExtra(
+//                                            "title",
+//                                            selectedVideo.title
+//                                        )
+//
+//                                        putExtra(
+//                                            "description",
+//                                            selectedVideo.description
+//                                        )
+//
+//                                        putExtra(
+//                                            "url",
+//                                            selectedVideo.url
+//                                        )
+//                                    }
+//                                )
+//                            }*/
+//                        )
+                        MobileDetailsRoute(
                             video = video!!,
-
                             onBack = {
                                 navController.popBackStack()
                             },
-                            viewModelFactory = VideoPlayerViewModelFactory(
-                                watchProgressRepository = watchProgressRepository
-                            ),
+                            onPlayVideo = {
+                                navController.navigate(
+                                    StreamRoutes.player(video!!.id)
+                                )
+                            },
+                            onShareClick = {
+                                val currentVideo = video ?: return@MobileDetailsRoute
+                                val shareText = buildString {
+                                    append(currentVideo.title)
 
-                            onOpenSubscription = { selectedVideo ->
+                                    if (currentVideo.description.isNotBlank()) {
+                                        append("\n\n")
+                                        append(currentVideo.description)
+                                    }
+
+                                    if (currentVideo.url.isNotBlank()) {
+                                        append("\n\n")
+                                        append(currentVideo.url)
+                                    }
+                                }
+
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, currentVideo.title)
+                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                }
 
                                 context.startActivity(
-                                    Intent(
-                                        context,
-                                        SubscriptionActivity::class.java
-                                    ).apply {
-
-                                        putExtra(
-                                            "title",
-                                            selectedVideo.title
-                                        )
-
-                                        putExtra(
-                                            "description",
-                                            selectedVideo.description
-                                        )
-
-                                        putExtra(
-                                            "url",
-                                            selectedVideo.url
-                                        )
-                                    }
+                                    Intent.createChooser(shareIntent, "Share video")
                                 )
+                            },
+                            onLikeClick = {
+//                                navController.navigate(
+//                                    StreamRoutes.LOGIN
+//                                ) {
+//                                    popUpTo(
+//                                        StreamRoutes.HOME
+//                                    ) {
+//                                        inclusive = true
+//                                    }
+//                                }
+                            },
+                            onMyListClick = {
+//                                navController.navigate(
+//                                    StreamRoutes.LOGIN
+//                                ) {
+//                                    popUpTo(
+//                                        StreamRoutes.HOME
+//                                    ) {
+//                                        inclusive = true
+//                                    }
+//                                }
+                            },
+                            onLoginClick = {
+                                navController.navigate(
+                                    StreamRoutes.login(redirect = "details")
+                                )
+                            },
+                            isPremiumUser = video!!.isPremium && false, // see note below
+                            onSubscribeClick = {
+                                navController.navigate(StreamRoutes.SUBSCRIPTION)
+//                                navController.navigate(StreamRoutes.SUBSCRIPTION)
                             }
                         )
                     }
@@ -715,7 +944,3 @@ fun StreamApp() {
     }
 }
 
-@OptIn(UnstableApi::class)
-private fun getCollectionVideos(): List<Video> {
-    return VideoRepository.getVideos()
-}

@@ -35,10 +35,16 @@ class LoginViewModel : ViewModel() {
                     .filter { it.isDigit() }
                     .take(10)
 
+                val error = if (phone.isNotEmpty() && phone.firstOrNull() !in '6'..'9') {
+                    "mobile number should be start from 6,7,8,9"
+                } else {
+                    null
+                }
+
                 _uiState.update {
                     it.copy(
                         phoneNumber = phone,
-                        error = null,
+                        error = error,
                         message = null
                     )
                 }
@@ -55,7 +61,16 @@ class LoginViewModel : ViewModel() {
 
                     _uiState.update {
                         it.copy(
-                            error = "Enter a valid 10-digit phone number",
+                            error = "Enter a valid 10-digit mobile number",
+                            message = null
+                        )
+                    }
+
+                    return
+                } else if (!isValidMobileNumber(phone)) {
+                    _uiState.update {
+                        it.copy(
+                            error = "mobile number should be start from 6,7,8,9",
                             message = null
                         )
                     }
@@ -75,6 +90,12 @@ class LoginViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    fun isValidMobileNumber(mobileNumber: String): Boolean {
+        // Regex pattern for a 10-digit number starting with 6, 7, 8, or 9
+        val regex = "^[6-9]\\d{9}$".toRegex()
+        return mobileNumber.matches(regex)
     }
 
     private fun sendOtp(mobile: String) {

@@ -1,4 +1,4 @@
-package com.dealshot.app.presentation.tv.likeAndList
+package com.dealshot.app.presentation.tv.myList
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -6,9 +6,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.dealshot.app.data.remote.dto.VideoDto
 import com.dealshot.app.data.video.Video
-import com.dealshot.app.presentation.shared.likeAndList.SavedVideosEffect
-import com.dealshot.app.presentation.shared.likeAndList.SavedVideosIntent
-import com.dealshot.app.presentation.shared.likeAndList.SavedVideosViewModel
+import com.dealshot.app.presentation.shared.myList.SavedVideosEffect
+import com.dealshot.app.presentation.shared.myList.SavedVideosIntent
+import com.dealshot.app.presentation.shared.myList.SavedVideosViewModel
 
 /**
  * TV entry point for Liked Videos / My List. Uses the same shared

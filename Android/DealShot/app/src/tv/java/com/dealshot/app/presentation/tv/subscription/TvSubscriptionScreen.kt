@@ -20,12 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Tv
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -115,10 +111,10 @@ fun TvSubscriptionScreen(
             )
             Spacer(Modifier.height(32.dp))
 
-            FeatureItem(Icons.Default.PlayArrow, "Unlimited movies & TV shows")
-            FeatureItem(Icons.Default.Tv, "Watch on all your devices")
-            FeatureItem(Icons.Default.Download, "Download and watch offline")
-            FeatureItem(Icons.Default.Star, "Ad-free experience")
+            FeatureItem(R.drawable.play_fill, "Unlimited movies & TV shows")
+            FeatureItem(R.drawable.iphone, "Watch on all your devices")
+            FeatureItem(R.drawable.arrow_right, "Download and watch offline")
+            FeatureItem(R.drawable.crown_fill, "Ad-free experience")
         }
 
         // ── RIGHT: plans + subscribe ──
@@ -232,7 +228,7 @@ private fun TvPlanCard(
         ) {
             if (selected) {
                 Icon(
-                    imageVector = Icons.Default.Check,
+                    painter = painterResource(id = R.drawable.checkmark),
                     contentDescription = "Selected",
                     tint = Color.White,
                     modifier = Modifier.size(22.dp)
@@ -272,7 +268,7 @@ private fun TvSubscribeButton(
 }
 
 @Composable
-private fun FeatureItem(icon: ImageVector, text: String) {
+private fun FeatureItem(iconResId: Int, text: String) {
     Row(
         modifier = Modifier.padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -285,7 +281,7 @@ private fun FeatureItem(icon: ImageVector, text: String) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = icon,
+                painter = painterResource(id = iconResId),
                 contentDescription = null,
                 tint = Color.Gray,
                 modifier = Modifier.size(18.dp)

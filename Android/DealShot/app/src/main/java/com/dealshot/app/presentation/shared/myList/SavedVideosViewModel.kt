@@ -1,4 +1,4 @@
-package com.dealshot.app.presentation.shared.likeAndList
+package com.dealshot.app.presentation.shared.myList
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
-import kotlin.text.contains
 
 class SavedVideosViewModel(
     private val repository: SavedVideosRepository,
@@ -22,6 +21,7 @@ class SavedVideosViewModel(
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SavedVideosState())
+    private val _uiLiState = MutableStateFlow(SavedLikedVideosState())
     val uiState = _uiState.asStateFlow()
 
     private val _effect = Channel<SavedVideosEffect>(Channel.BUFFERED)
@@ -59,7 +59,7 @@ class SavedVideosViewModel(
             }
 
             try {
-                val videos = repository.getVideos(collection)
+                val videos = repository.getVideos()
 
                 _uiState.update {
                     it.copy(
@@ -72,8 +72,9 @@ class SavedVideosViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                handleError(e)
-                _uiState.update { it.copy(isLoading = false) }
+                _uiState.update {
+                    it.copy(isLoading = false, error = AppErrorHandler.getUserMessage(e))
+                }
             }
         }
     }
@@ -111,7 +112,7 @@ class SavedVideosViewModel(
 
         viewModelScope.launch {
             try {
-                val addedVideo = repository.addVideo(collection, videoId)
+                val addedVideo = repository.addVideo(videoId)
 
                 _uiState.update { state ->
                     val resolvedVideo = addedVideo ?: video
@@ -189,7 +190,7 @@ class SavedVideosViewModel(
 
         viewModelScope.launch {
             try {
-                val message = repository.removeVideo(collection, videoId)
+                val message = repository.removeVideo(videoId)
 
                 _uiState.update {
                     it.copy(
@@ -245,19 +246,19 @@ class SavedVideosViewModel(
     private fun addedMessage(): String =
         when (collection) {
             SavedVideoCollection.MY_LIST -> "Video added to My List"
-            SavedVideoCollection.WATCH_LATER -> "Video added to Watch Later"
+            SavedVideoCollection.LIKED -> "Video added to Like Later"
         }
 
     private fun alreadyAddedMessage(): String =
         when (collection) {
             SavedVideoCollection.MY_LIST -> "Already in My List"
-            SavedVideoCollection.WATCH_LATER -> "Already in Watch Later"
+            SavedVideoCollection.LIKED -> "Already in Like Later"
         }
 
     private fun removedMessage(): String =
         when (collection) {
             SavedVideoCollection.MY_LIST -> "Video removed from My List"
-            SavedVideoCollection.WATCH_LATER -> "Video removed from Watch Later"
+            SavedVideoCollection.LIKED -> "Video removed from Like Later"
         }
 
     private fun sendEffect(effect: SavedVideosEffect) {

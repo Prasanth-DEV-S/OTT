@@ -16,12 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +59,7 @@ fun TvDetailsScreen(
     onMyListClick: () -> Unit,
     onLikeClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val playFocus = remember { FocusRequester() }
 
     // D-pad focus starts on Play.
@@ -155,7 +154,7 @@ fun TvDetailsScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 TvDetailsButton(
                     label = "Play",
-                    icon = Icons.Default.PlayArrow,
+                    iconResId = R.drawable.play_fill,
                     primary = true,
                     onClick = onPlayVideo,
                     modifier = Modifier.focusRequester(playFocus)
@@ -163,17 +162,29 @@ fun TvDetailsScreen(
 
                 TvDetailsButton(
                     label = if (isInMyWatchLater) "Added" else "My List",
-                    icon = if (isInMyWatchLater) Icons.Default.Check else Icons.Default.Add,
+                    iconResId = if (isInMyWatchLater) R.drawable.checkmark else R.drawable.plus,
                     enabled = !isUpdatingMyWatchLater,
-                    onClick = onMyListClick
+                    onClick = {
+                        if (!isInMyWatchLater) {
+                            val title = video.title.ifBlank { "Video" }
+                            Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                        }
+                        onMyListClick()
+                    }
                 )
 
                 TvDetailsButton(
                     label = if (isLiked) "Liked" else "Like",
-                    icon = if (isLiked) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                    iconResId = if (isLiked) R.drawable.heart_fill else R.drawable.heart,
                     iconTint = if (isLiked) Color.Red else null,
                     enabled = !isUpdatingLike,
-                    onClick = onLikeClick
+                    onClick = {
+                        if (!isLiked) {
+                            val title = video.title.ifBlank { "Video" }
+                            Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                        }
+                        onLikeClick()
+                    }
                 )
             }
         }
@@ -183,7 +194,7 @@ fun TvDetailsScreen(
 @Composable
 private fun TvDetailsButton(
     label: String,
-    icon: ImageVector,
+    iconResId: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     primary: Boolean = false,
@@ -211,7 +222,7 @@ private fun TvDetailsButton(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = icon,
+            painter = painterResource(id = iconResId),
             contentDescription = null,
             tint = if (focused) content else (iconTint ?: content),
             modifier = Modifier.size(26.dp)

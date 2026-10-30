@@ -28,6 +28,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.painterResource
+import com.dealshot.app.R
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,7 +70,7 @@ import java.util.Locale
 
 private const val SEEK_STEP_MS = 10_000L
 private const val CONTROLS_HIDE_MS = 4_000L
-private const val TRIAL_LIMIT_MS = 15_000L // same 15s limit as mobile
+
 
 private val AccentOrange = Color(0xFFFF9800)
 
@@ -88,8 +90,8 @@ fun TvPlayerScreen(
     isVideoUnavailable: Boolean,
     onIntent: (VideoPlayerIntent) -> Unit
 ) {
-    var showSubscriptionPopup by remember { mutableStateOf(false) }
-    var hasShownSubscriptionPopup by remember { mutableStateOf(false) }
+
+
     var isControlsVisible by remember { mutableStateOf(true) }
     var interactionTick by remember { mutableIntStateOf(0) }
     var isBuffering by remember { mutableStateOf(true) }
@@ -104,25 +106,35 @@ fun TvPlayerScreen(
     }
 
     fun seekBy(deltaMs: Long) {
-        val duration = player.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
-        player.seekTo((player.currentPosition + deltaMs).coerceIn(0L, duration))
+        val maxAllowedMs = state.totalDuration
+        val targetMs = (player.currentPosition + deltaMs).coerceIn(0L, maxAllowedMs)
+        player.seekTo(targetMs)
+        if (!state.isLoggedIn && state.isPreviewExhausted) {
+            player.pause()
+            onIntent(VideoPlayerIntent.PlayPauseClicked)
+        }
         showControls()
     }
 
     fun togglePlayPause() {
-        if (player.isPlaying) player.pause() else player.play()
-        onIntent(VideoPlayerIntent.PlayPauseClicked)
+        if (!state.isLoggedIn && state.isPreviewExhausted) {
+            player.pause()
+            onIntent(VideoPlayerIntent.PlayPauseClicked)
+        } else {
+            if (player.isPlaying) player.pause() else player.play()
+            onIntent(VideoPlayerIntent.PlayPauseClicked)
+        }
         showControls()
     }
 
     // Remote Back leaves the player (same as the mobile back button).
-    BackHandler(enabled = !showSubscriptionPopup) {
+    BackHandler(enabled = !state.showSubscriptionPopup) {
         onIntent(VideoPlayerIntent.BackClicked)
     }
 
     // Keep key focus on the player root.
-    LaunchedEffect(showSubscriptionPopup) {
-        if (!showSubscriptionPopup) runCatching { rootFocus.requestFocus() }
+    LaunchedEffect(state.showSubscriptionPopup) {
+        if (!state.showSubscriptionPopup) runCatching { rootFocus.requestFocus() }
     }
 
     // Progress ticker + 15s subscription gate (same logic as mobile).
@@ -141,16 +153,12 @@ fun TvPlayerScreen(
                 VideoPlayerIntent.PlaybackStateChanged(isPlaying = player.isPlaying)
             )
 
-            if (
-                !isPremiumUser &&
-                !hasShownSubscriptionPopup &&
-                currentPosition >= TRIAL_LIMIT_MS
-            ) {
-                hasShownSubscriptionPopup = true
+            // ViewModel handles preview limit logic via checkGuestPreviewLimit
+            
+            if (player.isPlaying && state.showSubscriptionPopup) {
                 player.pause()
-                showSubscriptionPopup = true
             }
-
+            
             delay(250)
         }
     }
@@ -197,7 +205,7 @@ fun TvPlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent { event ->
-                if (showSubscriptionPopup) return@onPreviewKeyEvent false
+                if (state.showSubscriptionPopup) return@onPreviewKeyEvent false
                 if (event.type != KeyEventType.KeyDown) {
                     // Consume the matching key-up for keys we handle.
                     return@onPreviewKeyEvent event.key in HandledKeys
@@ -271,15 +279,14 @@ fun TvPlayerScreen(
         }
     }
 
-    if (showSubscriptionPopup) {
+    if (state.showSubscriptionPopup) {
         TvSubscriptionDialog(
             onSubscribe = {
-                showSubscriptionPopup = false
+                onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
                 onIntent(VideoPlayerIntent.SubscriptionClicked)
             },
             onNotNow = {
-                showSubscriptionPopup = false
-                player.play()
+                onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
             }
         )
     }
@@ -315,7 +322,9 @@ private fun TvPlayerControls(state: VideoPlayerState) {
         )
 
         Icon(
-            imageVector = if (state.isPlaying) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+            painter = painterResource(
+                id = if (state.isPlaying) R.drawable.pause_fill else R.drawable.play_fill
+            ),
             contentDescription = if (state.isPlaying) "Pause" else "Play",
             tint = Color.White,
             modifier = Modifier
@@ -395,9 +404,9 @@ private fun TvSubscriptionDialog(
     }
 
     Dialog(
-        onDismissRequest = {},
+        onDismissRequest = onNotNow,
         properties = DialogProperties(
-            dismissOnBackPress = false,
+            dismissOnBackPress = true,
             dismissOnClickOutside = false
         )
     ) {
@@ -409,7 +418,7 @@ private fun TvSubscriptionDialog(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Subscribe to keep watching",
+                text = "Login to keep watching",
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold
@@ -423,11 +432,11 @@ private fun TvSubscriptionDialog(
             Spacer(Modifier.height(28.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 DialogButton(
-                    label = "Not now",
+                    label = "Not Now",
                     onClick = onNotNow
                 )
                 DialogButton(
-                    label = "Subscribe",
+                    label = "Login",
                     onClick = onSubscribe,
                     modifier = Modifier.focusRequester(subscribeFocus)
                 )

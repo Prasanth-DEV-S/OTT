@@ -26,10 +26,11 @@ class SecureTokenStorage(
 
     }
 
-    private val keyStore: KeyStore =
+    private val keyStore: KeyStore by lazy {
         KeyStore.getInstance(KEYSTORE_PROVIDER).apply {
             load(null)
         }
+    }
 
     private fun getOrCreateKey(): SecretKey {
 

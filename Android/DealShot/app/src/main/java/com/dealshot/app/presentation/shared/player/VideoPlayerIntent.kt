@@ -26,6 +26,8 @@ sealed interface VideoPlayerIntent {
     data object PlayPauseClicked : VideoPlayerIntent
 
     data object ClearError : VideoPlayerIntent
+    data object CheckAuthStatus : VideoPlayerIntent
+    data object SubscriptionPopupDismissed : VideoPlayerIntent
 
     data object PlaybackReady : VideoPlayerIntent
 

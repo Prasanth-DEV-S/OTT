@@ -27,8 +27,10 @@ class VideoRepositoryImpl(
         if (!response.success) {
             throw Exception("Failed to load video categories")
         }
+        val allowedCategories = setOf("Home", "National", "International", "Motivational",
+            "Inspiration", "Academic")
 
-        return response.categories
+        return response.categories.filter { it.name in allowedCategories }
     }
 }
 

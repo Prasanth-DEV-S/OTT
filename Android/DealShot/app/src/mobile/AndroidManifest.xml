@@ -12,20 +12,24 @@
 
         <activity
             android:name=".presentation.mobile.otp.OtpActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".presentation.mobile.login.LoginActivity"
             android:exported="false"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Stream" />
 
         <activity
             android:name=".presentation.mobile.details.MobileDetailsActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".presentation.mobile.subscription.SubscriptionActivity"
             android:exported="false"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Stream" />
 
     </application>

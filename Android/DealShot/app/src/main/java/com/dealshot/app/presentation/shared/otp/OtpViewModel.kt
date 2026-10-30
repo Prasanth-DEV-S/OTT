@@ -106,7 +106,7 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
 
             _uiState.update {
                 it.copy(
-                    error = "Phone number is required"
+                    error = "mobile number is required"
                 )
             }
 
@@ -195,17 +195,20 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        isSuccess = true,
                         error = null,
-                        message = "OTP verified successfully"
+                        message = "Login Successful!"
                     )
                 }
 
                 val user = response.user
 
+                val resolvedName = user.name.ifBlank { "User ${phoneNumber.takeLast(4)}" }
+
                 userPreferences.saveLoginSession(
                     token = response.token,
                     userId = user.id,
-                    name = user.name,
+                    name = resolvedName,
                     mobile = user.mobile.ifBlank { phoneNumber },
                     email = user.email,
                     role = user.role,
@@ -220,6 +223,8 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
                     subscriptionStatus = user.subscription.status,
                     lastLoginAt = user.lastLoginAt
                 )
+
+                kotlinx.coroutines.delay(1200)
 
                 _effect.send(
                     OtpEffect.NavigateToHome

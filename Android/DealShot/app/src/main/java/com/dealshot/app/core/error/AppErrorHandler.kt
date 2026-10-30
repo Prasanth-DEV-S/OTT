@@ -4,6 +4,7 @@ import retrofit2.HttpException
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import kotlinx.serialization.SerializationException
 
 object AppErrorHandler {
 
@@ -21,8 +22,11 @@ object AppErrorHandler {
             is java.io.IOException ->
                 "A network error occurred. Please check your connection and try again."
 
+            is SerializationException ->
+                "Failed to process data from server. Please try again later."
+
             is retrofit2.HttpException -> when (throwable.code()) {
-                401 -> "Your session may have expired. Please sign in again."
+                401 -> "Unable to find your session or may have expired. Please sign in again."
                 403 -> "You don't have permission to perform this action."
                 404 -> "The requested content could not be found."
                 in 500..599 ->

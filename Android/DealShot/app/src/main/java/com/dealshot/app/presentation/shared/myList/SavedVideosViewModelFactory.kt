@@ -1,10 +1,9 @@
-package com.dealshot.app.presentation.shared.likeAndList
+package com.dealshot.app.presentation.shared.myList
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.dealshot.app.data.remote.repository.SavedVideoCollection
 import com.dealshot.app.data.remote.repository.SavedVideosRepository
-import com.dealshot.app.presentation.shared.likeAndList.SavedVideosViewModel
 
 class SavedVideosViewModelFactory(
     private val repository: SavedVideosRepository,

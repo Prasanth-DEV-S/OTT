@@ -15,7 +15,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.0001"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
@@ -66,6 +66,7 @@ kotlin {
 }
 
 dependencies {
+    implementation("com.google.code.gson:gson:2.13.2")
     implementation(libs.androidx.junit.ktx)
     implementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(platform("androidx.compose:compose-bom:<your-bom-version>"))
@@ -84,7 +85,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
     // Extended Vector Asset UI Elements
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.androidx.material.icons.extended)
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 
     // Media3 Ecosystem Implementations

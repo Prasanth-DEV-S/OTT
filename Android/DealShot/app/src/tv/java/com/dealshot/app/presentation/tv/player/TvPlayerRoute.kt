@@ -44,14 +44,7 @@ fun TvPlayerRoute(
     val viewModel: VideoPlayerViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(viewModel) {
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                VideoPlayerEffect.NavigateBack -> onBack()
-                VideoPlayerEffect.OpenSubscription -> onOpenSubscription(video)
-            }
-        }
-    }
+
 
     // Save progress when the app goes to background.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -59,6 +52,8 @@ fun TvPlayerRoute(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 viewModel.onIntent(VideoPlayerIntent.SaveProgressRequested)
+            } else if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.onIntent(VideoPlayerIntent.CheckAuthStatus)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -112,13 +107,34 @@ fun TvPlayerRoute(
 
                 try {
                     setMediaItem(MediaItem.fromUri(targetUri))
-                    playWhenReady = true
+                    playWhenReady = false
                     prepare()
                 } catch (e: Exception) {
                     Log.e("TvPlayer", "Video unavailable: ${video.url}", e)
                     isVideoUnavailable = true
                 }
             }
+    }
+
+    LaunchedEffect(viewModel, exoPlayer) {
+        viewModel.effect.collect { effect ->
+            when (effect) {
+                VideoPlayerEffect.NavigateBack -> onBack()
+                VideoPlayerEffect.OpenSubscription -> onOpenSubscription(video)
+                is VideoPlayerEffect.PauseAndShowLogin -> {
+                    exoPlayer.pause()
+                    exoPlayer.seekTo(effect.limitMs)
+                }
+                is VideoPlayerEffect.ResumePlayback -> {
+                    if (effect.positionMs > 0L) {
+                        exoPlayer.seekTo(effect.positionMs)
+                    } else if (exoPlayer.currentPosition > 0L) {
+                        exoPlayer.seekTo(exoPlayer.currentPosition)
+                    }
+                    exoPlayer.play()
+                }
+            }
+        }
     }
 
     // Save the latest position and release the player when leaving.

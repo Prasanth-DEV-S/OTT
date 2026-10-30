@@ -13,7 +13,7 @@ data class VideoDto(
     val category: String? = null,
     val description: String? = null,
     val duration: String? = null,
-    val durationSeconds: Int? = null,
+    val durationSeconds: Double? = null,
     val featured: Boolean = false,
     val isPremium: Boolean = false,
     val subdescription: String? = null,
@@ -24,7 +24,9 @@ data class VideoDto(
     val createdAt: String? = null,
     val videoUrl: String? = null,
     val videos: String? = null,
-    val promoVideoUrl: String? = null
+    val promoVideoUrl: String? = null,
+    val likedAt: String? = null,
+    val likedByMe: Boolean? = null
 )
 
 @Serializable
@@ -60,7 +62,7 @@ data class VideoDetailsDto(
     val thumbnailUrl: String? = null,
     val videoUrl: String? = null,
     val duration: String? = null,
-    val durationSeconds: Int? = null,
+    val durationSeconds: Double? = null,
     val isPremium: Boolean = false,
     val category: String? = null,
     val featured: Boolean = false,

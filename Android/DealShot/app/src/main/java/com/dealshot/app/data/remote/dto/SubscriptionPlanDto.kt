@@ -5,27 +5,35 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class SubscriptionPlansResponseDto(
-    val success: Boolean,
-    val message: String,
-    val count: Int,
-    val data: List<SubscriptionPlanDto>
+    val success: Boolean = false,
+    val message: String = "",
+    val count: Int = 0,
+    val data: List<SubscriptionPlanDto> = emptyList()
+)
+
+@Serializable
+data class SingleSubscriptionPlanResponseDto(
+    val success: Boolean = false,
+    val message: String = "",
+    val data: SubscriptionPlanDto? = null
 )
 
 @Serializable
 data class SubscriptionPlanDto(
     @SerialName("_id")
-    val id: String,
-    val name: String,
-    val code: String,
-    val description: String,
-    val price: Int,
-    val currency: String,
-    val durationDays: Int,
-    val maxDevices: Int,
-    val maxProfiles: Int,
-    val simultaneousStreams: Int,
-    val videoQuality: String,
-    val hasPremiumContent: Boolean,
-    val sortOrder: Int
+    val id: String = "",
+    val name: String = "",
+    val code: String = "",
+    val description: String = "",
+    val price: Int = 0,
+    val currency: String = "INR",
+    @SerialName("durationInDays")
+    val durationInDays: Int = 0,
+    val hdAvailable: Boolean = false,
+    val hdr4kAvailable: Boolean = false,
+    val watchOnLaptopAndTV: Boolean = false,
+    val watchOnMobileAndTablet: Boolean = false,
+    val simultaneousStreams: Int = 1,
+    val isActive: Boolean = true,
+    val sortOrder: Int = 0
 )
-

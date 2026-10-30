@@ -13,5 +13,6 @@ data class Video(
     val apiId: String = "",
     val thumbnailUrl: String = "",
     val isPremium: Boolean = false,
-    val featured: Boolean = false
+    val featured: Boolean = false,
+    val promoVideoUrl: String = ""
 )

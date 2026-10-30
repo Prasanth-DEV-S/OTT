@@ -5,6 +5,7 @@ data class OtpState(
     val otp: String = "",
     val canVerify: Boolean = false,
     val isLoading: Boolean = false,
+    val isSuccess: Boolean = false,
     val error: String? = null,
     val message : String? = null,
     val mobileHint : String? = null

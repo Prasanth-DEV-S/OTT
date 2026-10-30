@@ -1,91 +1,102 @@
 package com.dealshot.app.presentation.mobile.home
 
 import android.util.Log
+import android.widget.Toast
 import android.view.LayoutInflater
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.dealshot.app.presentation.shared.home.HomeIntent
-import com.dealshot.app.presentation.shared.home.HomeState
-import com.dealshot.app.ui.theme.orange
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.dealshot.app.R
 import com.dealshot.app.data.preferences.UserPreferences
 import com.dealshot.app.data.remote.dto.VideoDto
+import com.dealshot.app.presentation.shared.home.HomeIntent
+import com.dealshot.app.presentation.shared.home.HomeState
+import com.dealshot.app.ui.theme.GoldPrimary
+import com.dealshot.app.ui.theme.GoldTextLight
 import com.dealshot.app.ui.theme.HintText
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.pager.PageSize
-import androidx.compose.ui.draw.alpha
-import androidx.media3.common.PlaybackException
+import com.dealshot.app.ui.theme.TextMuted
+import com.dealshot.app.ui.theme.orange
 import kotlinx.coroutines.delay
-import com.dealshot.app.R
-@kotlin.OptIn(ExperimentalGlideComposeApi::class)
+
 @Composable
 fun HomeScreen(
-    state: HomeState,
-    onIntent: (HomeIntent) -> Unit
+    state: HomeState, onIntent: (HomeIntent) -> Unit
 ) {
 
 
@@ -119,8 +130,14 @@ fun HomeScreen(
             featuredExoPlayer.release()
         }
     }
+    val userPreferences = remember { UserPreferences(context.applicationContext) }
+    val mobileNumber by userPreferences.mobileNumber.collectAsStateWithLifecycle(initialValue = "")
+    val userName by userPreferences.userName.collectAsStateWithLifecycle(initialValue = "")
+
     if (showProfileDialog) {
         ProfileDialog(
+            userName = userName.orEmpty(),
+            mobileNumber = mobileNumber.orEmpty(),
             onDismiss = {
                 showProfileDialog = false
             },
@@ -130,8 +147,7 @@ fun HomeScreen(
                 onIntent(
                     HomeIntent.LogoutClicked
                 )
-            }
-        )
+            })
     }
     val allVideos = state.allVideos
 
@@ -145,29 +161,25 @@ fun HomeScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    top = 60.dp,
-                    bottom = 16.dp
-                ),
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
             Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            )
-            {
+                modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = "Deal",
                     color = Color.White,
-                    fontSize = 28.sp,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
 
                 Text(
                     text = "Shot",
                     color = orange,
-                    fontSize = 28.sp,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -175,34 +187,36 @@ fun HomeScreen(
             IconButton(
                 onClick = {
                     onIntent(HomeIntent.LikedVideosClicked)
-                }
-            ) {
+                }) {
                 Icon(
-                    imageVector = Icons.Default.FavoriteBorder,
+                    painter = painterResource(id = R.drawable.heart),
                     contentDescription = "Liked Videos",
-                    tint = orange
+                    tint = orange,
+                    modifier = Modifier.size(30.dp)
                 )
             }
 
             TextButton(
                 onClick = {
                     onIntent(HomeIntent.MyListClicked)
-                }
-            ) {
+                }) {
                 Icon(
-                    imageVector = Icons.Default.BookmarkBorder,
+                    painter = painterResource(id = R.drawable.bookmark),
                     contentDescription = "My List",
-                    tint = orange
+                    tint = orange,
+                    modifier = Modifier.size(30.dp)
                 )
             }
 
             IconButton(
                 onClick = {
-                    onIntent(HomeIntent.ProfileClicked)
-                }
-            ) {
+                    /*Profile blocked 14102026*/
+                    showProfileDialog = true
+//                    onIntent(HomeIntent.ProfileClicked)
+                }) {
+
                 Icon(
-                    imageVector = Icons.Default.AccountCircle,
+                    painter = painterResource(id = R.drawable.person_crop_circle),
                     contentDescription = "Profile",
                     tint = orange,
                     modifier = Modifier.size(30.dp)
@@ -210,122 +224,90 @@ fun HomeScreen(
             }
         }
 
-        // Category Header
 
+        // Category Header
         LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(
-                top = 4.dp,
-                bottom = 8.dp
-            )
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp)
         ) {
 
             items(sections) { section ->
 
-                val isSelected =
-                    state.selectedSection.equals(
-                        section,
-                        ignoreCase = true
-                    )
+                val isSelected = state.selectedSection.equals(
+                    section, ignoreCase = true
+                )
 
-                Box(
+                Column(
                     modifier = Modifier
-                        .clip(
-                            RoundedCornerShape(50.dp)
-                        )
-                        .background(
-                            color = if (isSelected) {
-                                Color(0xFFFF9800)
-                            } else {
-                                Color(0xFF151515)
-                            }
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = if (isSelected) {
-                                Color(0xFFFF9800)
-                            } else {
-                                Color(0xFF151515)
-                            },
-                            shape = RoundedCornerShape(50.dp)
-                        )
+                        .width(IntrinsicSize.Max)
                         .clickable(
-                            indication = null,
-                            interactionSource = remember {
+                            indication = null, interactionSource = remember {
                                 MutableInteractionSource()
-                            }
-                        ) {
-
+                            }) {
                             onIntent(
                                 HomeIntent.SectionClicked(section)
                             )
                         }
-                        .padding(
-                            horizontal = 18.dp,
-                            vertical = 10.dp
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = section,
                         color = if (isSelected) {
-                            Color.Black
+                            GoldTextLight
                         } else {
-                            Color(0xFFE5E5E5)
+                            TextMuted
                         },
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = if (isSelected) {
                             FontWeight.Bold
                         } else {
                             FontWeight.Medium
                         }
                     )
+
+                    if (isSelected) {
+                        Box(
+                            modifier = Modifier
+                                .height(3.dp)
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                .background(GoldPrimary)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .height(3.dp)
+                                .fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
 
-
         // Video Categories
         if (state.isLoading) {
-
             Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
             }
 
         } else if (state.error != null) {
-
             Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = state.error,
-                    color = Color.White
+                    text = state.error, color = Color.White
                 )
             }
-
         } else {
-
-            val availableCategories = allVideos
-                .filter { video ->
-                    !video.category.isNullOrBlank() &&
-                            !video.videoUrl.isNullOrBlank()
-                }
-                .map { video ->
-                    video.category!!.trim()
-                }
-                .distinct()
-                .sorted()
-
+            val availableCategories =
+                state.categories.map { it.name.trim() }.filter { it.isNotBlank() }.distinct()
             when {
-
                 state.selectedSection.equals("Home", ignoreCase = true) -> {
-
                     HomeContent(
                         bannerVideos = state.bannerVideos,
                         allVideos = allVideos,
@@ -365,11 +347,8 @@ fun HomeScreen(
                     val selectedCategory = state.selectedSection
 
                     val categoryVideos = allVideos.filter { video ->
-                        video.category
-                            ?.trim()
-                            ?.equals(
-                                selectedCategory,
-                                ignoreCase = true
+                        video.category?.trim()?.equals(
+                                selectedCategory, ignoreCase = true
                             ) == true
                     }
 
@@ -401,14 +380,12 @@ private fun PremiumContent(
     onActiveVideoUrlChanged: (String?) -> Unit,
     onIntent: (HomeIntent) -> Unit
 ) {
+    val context = LocalContext.current
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            end = 20.dp,
-            bottom = 24.dp
-        )
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             if (premiumVideos.isNotEmpty()) {
@@ -420,9 +397,13 @@ private fun PremiumContent(
                         onIntent(HomeIntent.VideoClicked(video))
                     },
                     onMyList = { video ->
+                        val isSaved = video.id in myWatchLaterVideoIds
+                        if (!isSaved) {
+                            val title = video.title?.ifBlank { "Video" } ?: "Video"
+                            Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                        }
                         onIntent(HomeIntent.ToggleMyList(video))
-                    }
-                )
+                    })
             }
         }
 
@@ -441,13 +422,12 @@ private fun PremiumContent(
                             player = sharedExoPlayer
                         )
                     },
-                    onSeeAll = { categoryName ->
+                    onViewAll = { categoryName ->
                         onIntent(HomeIntent.SeeAllClicked(categoryName))
                     },
                     onVideoClick = { video ->
                         onIntent(HomeIntent.VideoClicked(video))
-                    }
-                )
+                    })
             }
         }
     }
@@ -482,6 +462,7 @@ private fun playVideo(
     player.prepare()
     player.playWhenReady = true
 }
+
 @Composable
 private fun CategoryContent(
     selectedCategory: String,
@@ -493,12 +474,12 @@ private fun CategoryContent(
     onActiveVideoUrlChanged: (String?) -> Unit,
     onIntent: (HomeIntent) -> Unit
 ) {
+    val context = LocalContext.current
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
-        contentPadding = PaddingValues(
-            bottom = 24.dp
-        )
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
 
         item {
@@ -516,17 +497,20 @@ private fun CategoryContent(
                     },
 
                     onMyList = { video ->
+                        val isSaved = video.id in myWatchLaterVideoIds
+                        if (!isSaved) {
+                            val title = video.title?.ifBlank { "Video" } ?: "Video"
+                            Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                        }
                         onIntent(
                             HomeIntent.ToggleMyList(video)
                         )
-                    }
-                )
+                    })
             }
         }
 
         item {
             if (categoryVideos.isNotEmpty()) {
-
                 VideoCategorySection(
                     title = selectedCategory,
                     videos = categoryVideos,
@@ -542,7 +526,7 @@ private fun CategoryContent(
                         )
                     },
 
-                    onSeeAll = { categoryName ->
+                    onViewAll = { categoryName ->
                         onIntent(
                             HomeIntent.SeeAllClicked(categoryName)
                         )
@@ -552,12 +536,12 @@ private fun CategoryContent(
                         onIntent(
                             HomeIntent.VideoClicked(video)
                         )
-                    }
-                )
+                    })
             }
         }
     }
 }
+
 @Composable
 fun VideoCategorySection(
     title: String,
@@ -566,14 +550,15 @@ fun VideoCategorySection(
     activeVideoUrl: String?,
     onPlayVideo: (VideoDto) -> Unit,
     onVideoClick: (VideoDto) -> Unit,
-    onSeeAll: (String) -> Unit
+    onViewAll: (String) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth()
-    )
-    {
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -581,52 +566,42 @@ fun VideoCategorySection(
             Text(
                 text = title,
                 color = Color.White,
-                fontSize = 24.sp,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable {
-                    onSeeAll(title)
-                }
-            ) {
+                verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable {
+                    onViewAll(title)
+                }) {
                 Text(
-                    text = "See all",
+                    text = "view all",
                     color = HintText,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold
                 )
 
                 Icon(
-                    imageVector = Icons.Default.KeyboardArrowRight,
-                    contentDescription = "See all",
+                    painter = painterResource(id = R.drawable.chevron_right),
+                    contentDescription = "view all",
                     tint = orange,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
-        Spacer(modifier = Modifier.height(10.dp))
         LazyRow(
-            contentPadding = PaddingValues(
-                start = 12.dp,
-                end = 12.dp
-            ),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(
-                items = videos,
-                key = { video -> video.id }
-            ) { video ->
-                val isPlaying =
-                    video.videoUrl != null && activeVideoUrl == video.videoUrl
+                items = videos, key = { video -> video.id }) { video ->
+                val isPlaying = video.videoUrl != null && activeVideoUrl == video.videoUrl
 
                 VideoCard(
                     video = video,
                     isPlaying = isPlaying,
                     exoPlayer = sharedExoPlayer,
                     onActive = { onPlayVideo(video) },
-                    onClick = { onVideoClick(video) }
-                )
+                    onClick = { onVideoClick(video) })
             }
         }
     }
@@ -651,13 +626,12 @@ private fun VideoCard(
         if (isPlaying) {
             AndroidView(
                 factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        useController = false
-                        resizeMode =
-                            AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        player = exoPlayer
-                    }
-                },
+                PlayerView(ctx).apply {
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    player = exoPlayer
+                }
+            },
                 update = { playerView ->
                     if (playerView.player != exoPlayer) {
                         playerView.player = exoPlayer
@@ -665,51 +639,50 @@ private fun VideoCard(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp)
+                    .aspectRatio(16f / 9f)
                     .clip(RoundedCornerShape(14.dp)),
                 onRelease = {
                     it.player = null
-                }
-            )
+                })
         } else {
             // Lightweight placeholder surface prevents OOM exceptions
             AsyncImage(
                 model = video.thumbnailUrl ?: video.thumbnail,
                 contentDescription = video.title,
                 contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp)
+                    .aspectRatio(4f / 3f)
                     .clip(RoundedCornerShape(14.dp))
             )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         video.title?.let {
             Text(
                 text = it,
                 color = Color.White,
-                fontSize = 17.sp,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        Spacer(modifier = Modifier.height(5.dp))
-
-        video.duration?.let {
+        if (!video.duration.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = it,
+                text = video.duration,
                 color = Color(0xFF9E9E9E),
-                fontSize = 14.sp
+                style = MaterialTheme.typography.bodyMedium
             )
         }
     }
 }
 
-@Composable
+/*@Composable
 fun ProfileDialog(
     onDismiss: () -> Unit,
     onLogout: () -> Unit
@@ -778,9 +751,72 @@ fun ProfileDialog(
                     fontSize = 20.sp,
                     modifier = Modifier
                         .clickable {
-                            onLogout()
+                            showLogoutConfirmation = true
                         }
                 )
+            }
+        }
+    }
+}*/
+
+@Composable
+fun ProfileDialog(
+    userName: String, mobileNumber: String, onDismiss: () -> Unit, onLogout: () -> Unit
+) {
+    androidx.activity.compose.BackHandler {
+        onDismiss()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f))
+                .clickable { onDismiss() }, contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable { /* Consume click */ }
+                    .padding(20.dp)) {
+                // Header Block
+                Text(
+                    text = "ACCOUNT",
+                    color = com.dealshot.app.ui.theme.GoldPrimary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "My Profile",
+                    color = com.dealshot.app.ui.theme.GoldTextLight,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Manage your profile and account details",
+                    color = com.dealshot.app.ui.theme.TextMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Profile Card Content
+                com.dealshot.app.presentation.mobile.profile.ProfilePopupCard(
+                    userName = userName, mobileNumber = mobileNumber, onLogout = {
+                        onDismiss()
+                        onLogout()
+                    })
             }
         }
     }
@@ -798,12 +834,12 @@ private fun HomeContent(
     onActiveVideoUrlChanged: (String?) -> Unit,
     onIntent: (HomeIntent) -> Unit
 ) {
+    val context = LocalContext.current
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
-        contentPadding = PaddingValues(
-            bottom = 24.dp
-        )
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
 
         // Featured Banner
@@ -821,11 +857,15 @@ private fun HomeContent(
                     },
 
                     onMyList = { video ->
+                        val isSaved = video.id in myWatchLaterVideoIds
+                        if (!isSaved) {
+                            val title = video.title?.ifBlank { "Video" } ?: "Video"
+                            Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                        }
                         onIntent(
                             HomeIntent.ToggleMyList(video)
                         )
-                    }
-                )
+                    })
             }
         }
 
@@ -833,15 +873,12 @@ private fun HomeContent(
         items(
             items = availableCategories
         ) { category ->
-
             val categoryVideos = allVideos.filter { video ->
-                video.category
-                    ?.trim()
-                    ?.equals(
-                        category,
-                        ignoreCase = true
+                video.category?.trim()?.equals(
+                        category, ignoreCase = true
                     ) == true
             }
+//            var categoryVideos = categories
 
             if (categoryVideos.isNotEmpty()) {
 
@@ -859,7 +896,7 @@ private fun HomeContent(
                             player = sharedExoPlayer
                         )
                     },
-                    onSeeAll = { categoryName ->
+                    onViewAll = { categoryName ->
                         onIntent(
                             HomeIntent.SeeAllClicked(categoryName)
                         )
@@ -868,8 +905,7 @@ private fun HomeContent(
                         onIntent(
                             HomeIntent.VideoClicked(video)
                         )
-                    }
-                )
+                    })
             }
         }
     }
@@ -901,19 +937,15 @@ private fun FeaturedVideoSection(
     }
 
     val pagerState = rememberPagerState(
-        initialPage = 0,
-        pageCount = { Int.MAX_VALUE }
-    )
+        initialPage = 0, pageCount = { Int.MAX_VALUE })
 
     /*
      * IMPORTANT:
      * Use settledPage for playback.
      */
-    val currentIndex =
-        pagerState.settledPage % videos.size
+    val currentIndex = pagerState.settledPage % videos.size
 
-    val currentVideo =
-        videos[currentIndex]
+    val currentVideo = videos[currentIndex]
 
     /*
      * --------------------------------
@@ -929,8 +961,7 @@ private fun FeaturedVideoSection(
                 playbackState: Int
             ) {
 
-                isBuffering =
-                    playbackState == Player.STATE_BUFFERING
+                isBuffering = playbackState == Player.STATE_BUFFERING
 
             }
 
@@ -950,9 +981,7 @@ private fun FeaturedVideoSection(
             ) {
 
                 Log.e(
-                    "FeaturedVideo",
-                    "Banner player error",
-                    error
+                    "FeaturedVideo", "Banner player error", error
                 )
 
                 hasPlayerError = true
@@ -1009,49 +1038,34 @@ private fun FeaturedVideoSection(
         }
     }
 
-    /*
-     * --------------------------------
-     * UI
-     * --------------------------------
-     */
-
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                start = 10.dp,
-                end = 10.dp,
-                top = 12.dp,
-                bottom = 24.dp
-            )
+        modifier = Modifier.fillMaxWidth()
     ) {
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(400.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .height(250.dp)
+                .clip(RoundedCornerShape(16.dp))
         ) {
 
             // 1. THUMBNAIL / PAGER
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                pageSpacing = 12.dp,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp)),
+                contentPadding = PaddingValues(0.dp),
+                pageSpacing = 0.dp,
                 pageSize = PageSize.Fill
             ) { page ->
-
-                val actualPage = page % videos.size
-                val video = videos[actualPage]
+                val video = videos[page % videos.size]
 
                 AsyncImage(
                     model = video.thumbnailUrl ?: video.thumbnail,
                     contentDescription = video.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(20.dp))
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
 
@@ -1059,21 +1073,15 @@ private fun FeaturedVideoSection(
             if (!hasPlayerError) {
                 AndroidView(
                     factory = { context ->
-                        LayoutInflater.from(context)
-                            .inflate(
-                                R.layout.view_banner_player,
-                                null
-                            ) as PlayerView
-                    },
-                    update = { playerView ->
-                        playerView.player = exoPlayer
-                    },
-                    onRelease = { playerView ->
-                        playerView.player = null
-                    },
-                    modifier = Modifier
+                    LayoutInflater.from(context).inflate(
+                            R.layout.view_banner_player, null
+                        ) as PlayerView
+                }, update = { playerView ->
+                    playerView.player = exoPlayer
+                }, onRelease = { playerView ->
+                    playerView.player = null
+                }, modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(20.dp))
                         .alpha(
                             if (isVideoReady) 1f else 0f
                         )
@@ -1087,132 +1095,327 @@ private fun FeaturedVideoSection(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.Transparent,
-                                Color(0x99000000),
-                                Color(0xFF000000)
+                                Color.Transparent, Color(0x99000000), Color(0xFF000000)
                             )
                         )
                     )
             )
 
-            // 4. TEXT + BUTTONS
+            // TOP LEFT LABEL
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 16.dp, start = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "DEALSHOT ORIGINAL",
+                    color = Color(0xFFE5C058),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    painter = painterResource(id = R.drawable.sparkles),
+                    contentDescription = null,
+                    tint = Color(0xFFE5C058),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            // 4. PAGER INDICATOR DOTS
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 16.dp, end = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val actualPage = pagerState.currentPage % videos.size
+                for (i in videos.indices) {
+                    val isSelected = i == actualPage
+                    Box(
+                        modifier = Modifier
+                            .height(6.dp)
+                            .width(if (isSelected) 18.dp else 6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.5f))
+                    )
+                }
+            }
+
+
+            // 5. TEXT + BUTTONS
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(24.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
             ) {
-
-                Text(
-                    text = "DEALSHOT ORIGINAL",
-                    color = Color(0xFFFF8A00),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 3.sp
-                )
-
-                Spacer(modifier = Modifier.height(5.dp))
-
                 currentVideo.title?.let { title ->
                     Text(
                         text = title,
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(Color(0xFFFFF9C4), Color(0xFFD4AF37))
+                            )
+                        ),
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Spacer(modifier = Modifier.height(7.dp))
+                // Description
+                currentVideo.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = desc,
+                        color = Color(0xFFE0E0E0),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        modifier = Modifier.basicMarquee()
+                    )
+                }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Spacer(modifier = Modifier.height(2.dp))
 
-                    Button(
-                        onClick = {
-                            onWatchNow(currentVideo)
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = Color.Black
-                        ),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Watch Now"
-                        )
+                // Meta row: 2026 • 1 min • Premium • [HD]
+                val metaItems = listOfNotNull(
+                    currentVideo.createdAt?.take(4),
+                    currentVideo.duration?.takeIf { it.isNotBlank() },
+                    if (currentVideo.isPremium) "Premium" else null
+                )
 
-                        Spacer(modifier = Modifier.width(6.dp))
-
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    metaItems.forEachIndexed { index, item ->
+                        if (index > 0) {
+                            Text(
+                                text = " • ",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                        }
                         Text(
-                            text = "Watch Now",
+                            text = item,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Text(
+                        text = " • ",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+
+                    // HD badge
+                    Box(
+                        modifier = Modifier
+                            .border(1.dp, Color.White, RoundedCornerShape(3.dp))
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "HD",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
 
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Watch Now Button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFFEAE2B7), Color(0xFFD4AF37)
+                                    )
+                                )
+                            )
+                            .clickable { onWatchNow(currentVideo) }
+                            .padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.play_fill),
+                            contentDescription = "Watch Now",
+                            tint = Color.Black,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Watch Now",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+
+                    // My List Circular Button
                     val isInMyWatchLater = currentVideo.id in myWatchLaterVideoIds
 
-                    Button(
-                        onClick = {
-                            onMyList(currentVideo)
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xCC252525),
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(Color.White.copy(alpha = 0.2f))
+                            .border(
+                                1.dp,
+                                Color.White.copy(alpha = 0.5f),
+                                RoundedCornerShape(percent = 50)
+                            )
+                            .clickable { onMyList(currentVideo) }) {
                         Icon(
-                            imageVector = if (isInMyWatchLater) Icons.Default.Check else Icons.Default.Add,
-                            contentDescription = if (isInMyWatchLater) "In My List" else "My List"
+                            painter = painterResource(id = if (isInMyWatchLater) R.drawable.checkmark else R.drawable.plus),
+                            contentDescription = if (isInMyWatchLater) "In My List" else "My List",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
                         )
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        Text(text = if (isInMyWatchLater) "Added" else "My List")
                     }
                 }
             }
+        }
+    }
 
-            // 5. INDICATORS
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                videos.forEachIndexed { index, _ ->
+    @Composable
+    fun ProfileDialog(
+        onDismiss: () -> Unit, onLogout: () -> Unit
+    ) {
+        val context = LocalContext.current
+        val userPreferences = UserPreferences(context)
+        val mobileNumber: String? by userPreferences.mobileNumber.collectAsStateWithLifecycle(
+                initialValue = null
+            )
 
-                    Box(
-                        modifier = Modifier
-                            .size(
-                                width = if (index == currentIndex) {
-                                    18.dp
-                                } else {
-                                    6.dp
-                                },
-                                height = 6.dp
-                            )
-                            .clip(RoundedCornerShape(50))
-                            .background(
-                                if (index == currentIndex) {
-                                    Color(0xFFFF8A00)
-                                } else {
-                                    Color.White.copy(alpha = 0.5f)
-                                }
-                            )
+        var showLogoutConfirmation by remember { mutableStateOf(false) }
+        val isGuest = mobileNumber.isNullOrBlank()
+
+        // Confirmation dialog
+        if (showLogoutConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showLogoutConfirmation = false },
+                containerColor = Color(0xFF1E1E1E),
+                title = {
+                    Text(
+                        text = "Log out", color = Color.White, fontWeight = FontWeight.Bold
                     )
+                },
+                text = {
+                    Text(
+                        text = "Are you sure you want to log out?", color = Color(0xFFBDBDBD)
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showLogoutConfirmation = false
+                            onLogout()
+                        }) {
+                        Text(text = "Yes", color = Color(0xFFFF5252))
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showLogoutConfirmation = false }) {
+                        Text(text = "No", color = Color.White)
+                    }
+                })
+        }
+
+        Dialog(
+            onDismissRequest = onDismiss, properties = DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .clickable { onDismiss() }
+                .padding(top = 70.dp, end = 16.dp), contentAlignment = Alignment.TopEnd) {
+
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color(0xFF1E1E1E))
+                        .clickable { /* Consume click so it does not dismiss */ }
+                        .width(250.dp)
+                        .padding(16.dp)) {
+                    Text(
+                        text = mobileNumber ?: "guest",
+                        color = Color(0xFFBDBDBD),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Normal
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = if (isGuest) "Log In" else "Log out",
+                        color = if (isGuest) Color(0xFF1E6705) else Color(0xFFFF5252),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.clickable {
+                            if (isGuest) {
+                                // Guests go straight to login, no confirmation needed
+                                onLogout()
+                            } else {
+                                showLogoutConfirmation = true
+                            }
+                        })
                 }
             }
         }
     }
 }
 
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, backgroundColor = 0xFF000000)
+@Composable
+fun HomeScreenPreview() {
+    val dummyVideos = listOf(
+        VideoDto(
+            id = "1",
+            title = "Big Buck Bunny",
+            description = "A short computer-animated comedy film.",
+            duration = "10:00",
+            category = "Comedy",
+            isPremium = true,
+            thumbnailUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Big_buck_bunny_poster_big.jpg/800px-Big_buck_bunny_poster_big.jpg",
+            videoUrl = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+        ), VideoDto(
+            id = "2",
+            title = "Elephant Dream",
+            description = "The first computer-generated animated short film produced entirely with free software.",
+            duration = "10:53",
+            category = "Action",
+            thumbnailUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Elephants_Dream_s5_both.jpg/800px-Elephants_Dream_s5_both.jpg",
+            videoUrl = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
+        )
+    )
 
+    val dummyState = HomeState(
+        isLoading = false,
+        allVideos = dummyVideos,
+        bannerVideos = dummyVideos,
+        sections = listOf("Home", "Premium", "Action", "Comedy"),
+        selectedSection = "Home",
+        categories = listOf(
+            com.dealshot.app.presentation.shared.home.VideoCategory("Action", 1),
+            com.dealshot.app.presentation.shared.home.VideoCategory("Comedy", 1)
+        )
+    )
 
-
-
-
+    HomeScreen(
+        state = dummyState, onIntent = {})
+}
 
