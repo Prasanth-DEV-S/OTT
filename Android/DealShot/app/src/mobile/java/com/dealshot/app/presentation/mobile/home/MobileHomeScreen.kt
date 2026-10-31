@@ -1045,7 +1045,7 @@ private fun FeaturedVideoSection(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp)
+                .height(350.dp)
                 .clip(RoundedCornerShape(16.dp))
         ) {
 
