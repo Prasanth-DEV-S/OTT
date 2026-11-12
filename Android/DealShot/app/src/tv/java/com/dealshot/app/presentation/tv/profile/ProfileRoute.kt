@@ -87,7 +87,9 @@ fun TvProfileRoute(
                 ProfileEffect.Logout -> onLogout()
                 ProfileEffect.DeleteAccount -> onDeleteAccount()
                 ProfileEffect.ProfileCreated,
-                ProfileEffect.ProfileUpdated -> Unit
+                ProfileEffect.ProfileUpdated,
+                is ProfileEffect.ProfileDeleted,
+                ProfileEffect.NavigateToCreateProfile -> Unit
                 is ProfileEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }

@@ -102,10 +102,13 @@ fun MobilePlayerScreen(
     var showShareDialog by remember { mutableStateOf(false) }
 
     if (showShareDialog) {
+        val shareUrl = com.dealshot.app.util.VideoShareHelper.generateShareUrl(video.id.ifEmpty { state.videoId })
+        val shareTitle = video.title.ifEmpty { state.title }
         ShareBottomSheetMenu(
-            videoTitle = video.title.ifEmpty { state.title },
-            videoUrl = video.url.ifEmpty { state.videoUrl },
-            shareText = "${video.title}\n\n${video.url}",
+            videoTitle = shareTitle,
+            videoUrl = shareUrl,
+            shareText = com.dealshot.app.util.VideoShareHelper.buildShareMessage(shareTitle, shareUrl),
+            videoId = video.id.ifEmpty { state.videoId },
             onDismiss = { showShareDialog = false }
         )
     }
@@ -134,35 +137,65 @@ fun MobilePlayerScreen(
     }
 
     if (state.showSubscriptionPopup) {
-        AlertDialog(
-            onDismissRequest = { /* Prevent dismiss by tapping outside */ },
-            title = {
-                Text("Continue watching", fontWeight = FontWeight.Bold, color = Color.Black)
-            },
-            text = {
-                Text(
-                    "Your 15-second preview has ended. Login to watch the full video.",
-                    color = Color.DarkGray
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
-                    onIntent(VideoPlayerIntent.SubscriptionClicked)
-                }) {
-                    Text("OK", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold)
+        val activity = context as? androidx.activity.ComponentActivity
+        if (activity != null) {
+            DisposableEffect(state.showSubscriptionPopup) {
+                val dialog = android.app.Dialog(activity).apply {
+                    requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+                    setContentView(R.layout.dialog_subscription)
+                    setCancelable(false)
+                    window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+                    findViewById<android.widget.TextView>(R.id.btn_not_now)?.setOnClickListener {
+                        dismiss()
+                        onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
+                    }
+
+                    findViewById<android.widget.TextView>(R.id.btn_ok)?.setOnClickListener {
+                        dismiss()
+                        onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
+                        onIntent(VideoPlayerIntent.SubscriptionClicked)
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
-                }) {
-                    Text("Not now", color = Color(0xFF007AFF))
+                dialog.show()
+
+                onDispose {
+                    if (dialog.isShowing) {
+                        dialog.dismiss()
+                    }
                 }
-            },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(16.dp)
-        )
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = { },
+                title = {
+                    Text("Continue watching", fontWeight = FontWeight.Bold, color = Color.Black)
+                },
+                text = {
+                    Text(
+                        "Your 30-second preview has ended. Choose a subscription plan to watch the full video.",
+                        color = Color.DarkGray
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
+                        onIntent(VideoPlayerIntent.SubscriptionClicked)
+                    }) {
+                        Text("OK", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
+                    }) {
+                        Text("Not now", color = Color(0xFF007AFF))
+                    }
+                },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
     }
 
     /*

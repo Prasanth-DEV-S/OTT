@@ -22,7 +22,7 @@ interface GuestPreviewRepository {
     fun getLocalWatchProgress(videoId: String): Long
 
     companion object {
-        const val GUEST_PREVIEW_LIMIT_MS = 15_000L
+        const val GUEST_PREVIEW_LIMIT_MS = 30_000L
     }
 }
 
@@ -56,7 +56,7 @@ class GuestPreviewRepositoryImpl(context: Context) : GuestPreviewRepository {
 
     override fun getPendingResumeState(): PendingResumeState? {
         val videoId = previewPrefs.getString("pending_video_id", null) ?: return null
-        val positionMs = previewPrefs.getLong("pending_position", 15_000L)
+        val positionMs = previewPrefs.getLong("pending_position", 30_000L)
         val screen = previewPrefs.getString("pending_screen", "details") ?: "details"
         return PendingResumeState(videoId, positionMs, screen)
     }

@@ -1,7 +1,5 @@
 package com.dealshot.app.presentation.mobile.details
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -33,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +39,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,12 +58,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.dealshot.app.R
+import com.dealshot.app.data.remote.ApiClient
+import com.dealshot.app.data.remote.repository.VideoRepository
+import com.dealshot.app.data.remote.repository.VideoRepositoryImpl
 import com.dealshot.app.ui.theme.CardBgDark
 import com.dealshot.app.ui.theme.FieldBg
 import com.dealshot.app.ui.theme.FieldBorderUnfocused
 import com.dealshot.app.ui.theme.GoldPrimary
 import com.dealshot.app.ui.theme.GoldTextLight
 import com.dealshot.app.ui.theme.TextMuted
+import com.dealshot.app.util.VideoShareHelper
 
 private data class InstalledShareApp(
     val name: String,
@@ -75,18 +79,83 @@ private data class InstalledShareApp(
     val isMore: Boolean = false
 )
 
+private sealed interface ShareLinkState {
+    data object Loading : ShareLinkState
+    data class Success(val shareUrl: String, val deepLink: String?, val title: String) : ShareLinkState
+    data class Error(val message: String) : ShareLinkState
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShareBottomSheetMenu(
     videoTitle: String,
-    videoUrl: String,
-    shareText: String,
+    videoUrl: String = "",
+    shareText: String = "",
+    videoId: String = "",
+    videoRepository: VideoRepository = remember { VideoRepositoryImpl(ApiClient.videoApi) },
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isCopied by remember { mutableStateOf(false) }
     var isExpanded by remember { mutableStateOf(false) }
+
+    var shareLinkState by remember { mutableStateOf<ShareLinkState>(ShareLinkState.Loading) }
+
+    // Fetch real share link dynamically from the backend GET /videos/{videoId}/share
+    LaunchedEffect(videoId) {
+        val cleanId = videoId.trim()
+        if (cleanId.isNotBlank()) {
+            shareLinkState = ShareLinkState.Loading
+            val result = videoRepository.generateShareLink(cleanId)
+            result.fold(
+                onSuccess = { response ->
+                    val url = response.shareUrl.ifBlank { response.deepLink.orEmpty() }
+                    if (url.isNotBlank()) {
+                        shareLinkState = ShareLinkState.Success(
+                            shareUrl = response.shareUrl,
+                            deepLink = response.deepLink,
+                            title = response.title.ifBlank { videoTitle }
+                        )
+                    } else {
+                        shareLinkState = ShareLinkState.Error("Share link unavailable")
+                    }
+                },
+                onFailure = { error ->
+                    shareLinkState = ShareLinkState.Error(
+                        error.localizedMessage ?: "Failed to generate share link"
+                    )
+                }
+            )
+        } else if (videoUrl.isNotBlank() && (videoUrl.startsWith("http://") || videoUrl.startsWith("https://"))) {
+            shareLinkState = ShareLinkState.Success(
+                shareUrl = videoUrl,
+                deepLink = null,
+                title = videoTitle
+            )
+        } else {
+            shareLinkState = ShareLinkState.Error("Video ID unavailable for sharing")
+        }
+    }
+
+    val currentShareUrl = when (val state = shareLinkState) {
+        is ShareLinkState.Success -> state.shareUrl
+        is ShareLinkState.Error -> ""
+        ShareLinkState.Loading -> ""
+    }
+
+    val currentDisplayTitle = when (val state = shareLinkState) {
+        is ShareLinkState.Success -> state.title.ifBlank { videoTitle }
+        else -> videoTitle
+    }
+
+    val effectiveShareText = when (val state = shareLinkState) {
+        is ShareLinkState.Success -> {
+            val deepLinkText = if (!state.deepLink.isNullOrBlank()) "\nApp link: ${state.deepLink}" else ""
+            "${VideoShareHelper.buildShareMessage(currentDisplayTitle, state.shareUrl)}$deepLinkText"
+        }
+        else -> ""
+    }
 
     // Dynamically query installed apps on device that can handle text sharing
     val installedApps = remember(context) {
@@ -123,7 +192,6 @@ fun ShareBottomSheetMenu(
             }
             .distinctBy { it.packageName }
 
-        // Preferred ordering for common messaging/social apps if installed
         val priorityPackages = listOf(
             "com.whatsapp",
             "org.telegram.messenger",
@@ -142,7 +210,6 @@ fun ShareBottomSheetMenu(
         }
     }
 
-    // Determine initial row targets vs expanded grid targets
     val initialTargets = remember(installedApps) {
         if (installedApps.size > 4) {
             installedApps.take(4) + InstalledShareApp(
@@ -153,7 +220,6 @@ fun ShareBottomSheetMenu(
         } else if (installedApps.isNotEmpty()) {
             installedApps
         } else {
-            // Fallback if no specific apps resolved
             listOf(
                 InstalledShareApp("Email", iconVector = Icons.Default.Email),
                 InstalledShareApp("Share", iconVector = Icons.Default.Share)
@@ -164,11 +230,13 @@ fun ShareBottomSheetMenu(
     val handleTargetClick: (InstalledShareApp) -> Unit = { target ->
         if (target.isMore) {
             isExpanded = true
+        } else if (currentShareUrl.isBlank()) {
+            Toast.makeText(context, "Share link is not available yet", Toast.LENGTH_SHORT).show()
         } else if (target.packageName.isNotBlank()) {
             onDismiss()
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, shareText)
+                putExtra(Intent.EXTRA_TEXT, effectiveShareText)
                 setClassName(target.packageName, target.activityName)
             }
             try {
@@ -176,7 +244,7 @@ fun ShareBottomSheetMenu(
             } catch (_: Exception) {
                 val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, shareText)
+                    putExtra(Intent.EXTRA_TEXT, effectiveShareText)
                     setPackage(target.packageName)
                 }
                 try {
@@ -187,16 +255,7 @@ fun ShareBottomSheetMenu(
             }
         } else {
             onDismiss()
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, videoTitle)
-                putExtra(Intent.EXTRA_TEXT, shareText)
-            }
-            try {
-                context.startActivity(Intent.createChooser(shareIntent, "Share video"))
-            } catch (_: Exception) {
-                Toast.makeText(context, "Could not share video", Toast.LENGTH_SHORT).show()
-            }
+            VideoShareHelper.openNativeShareSheet(context, currentDisplayTitle, currentShareUrl)
         }
     }
 
@@ -257,7 +316,7 @@ fun ShareBottomSheetMenu(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = videoTitle.ifBlank { "DealShot Video" },
+                        text = currentDisplayTitle.ifBlank { "DealShot Video" },
                         color = GoldTextLight,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -291,37 +350,69 @@ fun ShareBottomSheetMenu(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = videoUrl,
-                        color = TextMuted,
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isCopied) Color(0xFF16301C) else Color(0xFF2B2620))
-                            .border(1.dp, if (isCopied) Color(0xFF4CD964) else GoldPrimary, RoundedCornerShape(8.dp))
-                            .clickable {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("DealShot Video", videoUrl)
-                                clipboard.setPrimaryClip(clip)
-                                isCopied = true
-                                Toast.makeText(context, "Link copied to clipboard!", Toast.LENGTH_SHORT).show()
+                    when (val state = shareLinkState) {
+                        ShareLinkState.Loading -> {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = GoldPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Generating share link...",
+                                    color = TextMuted,
+                                    fontSize = 13.sp
+                                )
                             }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = if (isCopied) "Copied! ✓" else "Copy",
-                            color = if (isCopied) Color(0xFF4CD964) else GoldPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        }
+
+                        is ShareLinkState.Error -> {
+                            Text(
+                                text = state.message,
+                                color = Color(0xFFFF5252),
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        is ShareLinkState.Success -> {
+                            Text(
+                                text = state.shareUrl,
+                                color = TextMuted,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isCopied) Color(0xFF16301C) else Color(0xFF2B2620))
+                                    .border(1.dp, if (isCopied) Color(0xFF4CD964) else GoldPrimary, RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        VideoShareHelper.copyShareLink(context, state.shareUrl) {
+                                            isCopied = true
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = if (isCopied) "Copied! ✓" else "Copy",
+                                    color = if (isCopied) Color(0xFF4CD964) else GoldPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -356,7 +447,6 @@ fun ShareBottomSheetMenu(
             Spacer(modifier = Modifier.height(14.dp))
 
             if (!isExpanded) {
-                // Initial Single Row view
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -367,7 +457,6 @@ fun ShareBottomSheetMenu(
                     }
                 }
             } else {
-                // Expanded Grid view of all installed apps on device
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)

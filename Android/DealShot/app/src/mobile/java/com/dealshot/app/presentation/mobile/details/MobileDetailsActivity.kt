@@ -54,5 +54,7 @@ class MobileDetailsActivity : ComponentActivity() {
 //                )
             }
         }
+
+        com.dealshot.app.ui.GoldenBackgroundHelper.apply(this)
     }
 }

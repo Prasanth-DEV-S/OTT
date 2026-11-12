@@ -4,6 +4,21 @@ import android.util.Log
 import android.widget.Toast
 import android.view.LayoutInflater
 import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dealshot.app.data.remote.ApiClient
+import com.dealshot.app.data.remote.repository.SearchRepositoryImpl
+import com.dealshot.app.presentation.mobile.search.ExpandableSearchBar
+import com.dealshot.app.presentation.mobile.search.SearchEffect
+import com.dealshot.app.presentation.mobile.search.SearchIntent
+import com.dealshot.app.presentation.mobile.search.SearchScreen
+import com.dealshot.app.presentation.mobile.search.SearchViewModel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -68,6 +83,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -93,10 +109,13 @@ import com.dealshot.app.ui.theme.HintText
 import com.dealshot.app.ui.theme.TextMuted
 import com.dealshot.app.ui.theme.orange
 import kotlinx.coroutines.delay
+import org.junit.Test
 
 @Composable
 fun HomeScreen(
-    state: HomeState, onIntent: (HomeIntent) -> Unit
+    state: HomeState,
+    onIntent: (HomeIntent) -> Unit,
+    onAddProfile: () -> Unit = {}
 ) {
 
 
@@ -147,14 +166,41 @@ fun HomeScreen(
                 onIntent(
                     HomeIntent.LogoutClicked
                 )
-            })
+            },
+            onAddProfile = {
+                showProfileDialog = false
+                onAddProfile()
+            }
+        )
     }
     val allVideos = state.allVideos
 
+    val searchViewModel: SearchViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return SearchViewModel(
+                    searchRepository = SearchRepositoryImpl(ApiClient.videoApi)
+                ) as T
+            }
+        }
+    )
+    val searchState by searchViewModel.uiState.collectAsStateWithLifecycle()
+    var isSearchActive by remember { mutableStateOf(false) }
+
+    LaunchedEffect(searchViewModel) {
+        searchViewModel.effect.collect { effect ->
+            when (effect) {
+                is SearchEffect.OpenVideoDetails -> {
+                    onIntent(HomeIntent.VideoClicked(effect.video))
+                }
+                SearchEffect.DismissKeyboard -> {}
+            }
+        }
+    }
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
+        modifier = Modifier.fillMaxSize()
     ) {
 
         // Top Header
@@ -162,67 +208,94 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (!isSearchActive) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Deal",
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
 
-            Row(
-                modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Deal",
-                    color = Color.White,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                    Text(
+                        text = "Shot",
+                        color = orange,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
-                Text(
-                    text = "Shot",
-                    color = orange,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                IconButton(
+                    onClick = {
+                        onIntent(HomeIntent.LikedVideosClicked)
+                    }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.heart),
+                        contentDescription = "Liked Videos",
+                        tint = orange,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        onIntent(HomeIntent.MyListClicked)
+                    }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.bookmark),
+                        contentDescription = "My List",
+                        tint = orange,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
 
-            IconButton(
-                onClick = {
-                    onIntent(HomeIntent.LikedVideosClicked)
-                }) {
-                Icon(
-                    painter = painterResource(id = R.drawable.heart),
-                    contentDescription = "Liked Videos",
-                    tint = orange,
-                    modifier = Modifier.size(30.dp)
-                )
-            }
+            ExpandableSearchBar(
+                isExpanded = isSearchActive,
+                query = searchState.query,
+                onQueryChange = { searchViewModel.onIntent(SearchIntent.QueryChanged(it)) },
+                onSearchSubmit = { searchViewModel.onIntent(SearchIntent.SearchSubmitted(it)) },
+                onClearQuery = { searchViewModel.onIntent(SearchIntent.ClearQuery) },
+                onOpenSearch = { isSearchActive = true },
+                onCloseSearch = {
+                    isSearchActive = false
+                    searchViewModel.onIntent(SearchIntent.ClearQuery)
+                },
+                modifier = if (isSearchActive) Modifier.weight(1f) else Modifier
+            )
 
-            TextButton(
-                onClick = {
-                    onIntent(HomeIntent.MyListClicked)
-                }) {
-                Icon(
-                    painter = painterResource(id = R.drawable.bookmark),
-                    contentDescription = "My List",
-                    tint = orange,
-                    modifier = Modifier.size(30.dp)
-                )
-            }
-
-            IconButton(
-                onClick = {
-                    /*Profile blocked 14102026*/
-                    showProfileDialog = true
-//                    onIntent(HomeIntent.ProfileClicked)
-                }) {
-
-                Icon(
-                    painter = painterResource(id = R.drawable.person_crop_circle),
-                    contentDescription = "Profile",
-                    tint = orange,
-                    modifier = Modifier.size(30.dp)
-                )
+            if (!isSearchActive) {
+                IconButton(
+                    onClick = {
+                        onIntent(HomeIntent.ProfileClicked)
+                    }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.person_crop_circle),
+                        contentDescription = "Profile",
+                        tint = orange,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
+
+        if (isSearchActive) {
+            SearchScreen(
+                state = searchState,
+                onIntent = searchViewModel::onIntent,
+                onBack = {
+                    isSearchActive = false
+                    searchViewModel.onIntent(SearchIntent.ClearQuery)
+                },
+                modifier = Modifier.weight(1f)
+            )
+        } else {
 
 
         // Category Header
@@ -311,6 +384,8 @@ fun HomeScreen(
                     HomeContent(
                         bannerVideos = state.bannerVideos,
                         allVideos = allVideos,
+                        continueWatching = state.continueWatching,
+                        hasPremiumAccess = com.dealshot.app.data.subscription.hasPremiumAccess(state.subscriptionState),
                         availableCategories = availableCategories,
                         sharedExoPlayer = sharedExoPlayer,
                         featuredExoPlayer = featuredExoPlayer,
@@ -366,6 +441,7 @@ fun HomeScreen(
                     )
                 }
             }
+        }
         }
     }
 }
@@ -758,10 +834,40 @@ fun ProfileDialog(
         }
     }
 }*/
-
+@Preview(showBackground = true, name = "Profile Dialog Light Mode")
+@Composable
+fun ProfileDialogPreview() {
+    // Wrapped in a Box to simulate the screen background under the dialog
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        ProfileDialog(
+            userName = "Alex Mercer",
+            mobileNumber = "+1 (555) 019-2834",
+            onDismiss = {},
+            onLogout = {},
+            onAddProfile = {}
+        )
+    }
+}
 @Composable
 fun ProfileDialog(
-    userName: String, mobileNumber: String, onDismiss: () -> Unit, onLogout: () -> Unit
+    userName: String,
+    mobileNumber: String,
+    onDismiss: () -> Unit,
+    onLogout: () -> Unit,
+    onAddProfile: () -> Unit = {},
+    email: String = "",
+    gender: String = "",
+    language: String = "",
+    subscriptionLabel: String = "Free",
+    profiles: List<com.dealshot.app.presentation.mobile.profile.ProfileListItem> = emptyList(),
+    selectedProfileId: String? = null,
+    onProfileSelected: (String) -> Unit = {},
+    onRemoveProfile: (String) -> Unit = {},
+    onViewSubscription: () -> Unit = {},
+    onUnlockPremium: () -> Unit = {},
+    isLoggedIn: Boolean = mobileNumber.isNotBlank() || (userName.isNotBlank() && userName != "Guest")
 ) {
     androidx.activity.compose.BackHandler {
         onDismiss()
@@ -773,9 +879,20 @@ fun ProfileDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.85f))
                 .clickable { onDismiss() }, contentAlignment = Alignment.Center
         ) {
+            // Animated golden background on profile popup
+            com.dealshot.app.ui.AnimatedGoldenBackground(
+                modifier = Modifier.matchParentSize()
+            )
+
+            // Dim overlay for contrast and click dismissal
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.65f))
+            )
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -813,10 +930,28 @@ fun ProfileDialog(
 
                 // Profile Card Content
                 com.dealshot.app.presentation.mobile.profile.ProfilePopupCard(
-                    userName = userName, mobileNumber = mobileNumber, onLogout = {
+                    userName = userName,
+                    mobileNumber = mobileNumber,
+                    email = email,
+                    gender = gender,
+                    language = language,
+                    subscriptionLabel = subscriptionLabel,
+                    profiles = profiles,
+                    selectedProfileId = selectedProfileId,
+                    onProfileSelected = onProfileSelected,
+                    onRemoveProfile = onRemoveProfile,
+                    onViewSubscription = onViewSubscription,
+                    onUnlockPremium = onUnlockPremium,
+                    onLogout = {
                         onDismiss()
                         onLogout()
-                    })
+                    },
+                    onAddProfile = {
+                        onDismiss()
+                        onAddProfile()
+                    },
+                    isLoggedIn = isLoggedIn
+                )
             }
         }
     }
@@ -826,6 +961,8 @@ fun ProfileDialog(
 private fun HomeContent(
     bannerVideos: List<VideoDto>,
     allVideos: List<VideoDto>,
+    continueWatching: List<VideoDto> = emptyList(),
+    hasPremiumAccess: Boolean = false,
     availableCategories: List<String>,
     sharedExoPlayer: ExoPlayer,
     featuredExoPlayer: ExoPlayer,
@@ -866,6 +1003,30 @@ private fun HomeContent(
                             HomeIntent.ToggleMyList(video)
                         )
                     })
+            }
+        }
+
+        // Continue Watching Section (ONLY shown for non-premium users when non-empty)
+        if (!hasPremiumAccess && continueWatching.isNotEmpty()) {
+            item {
+                VideoCategorySection(
+                    title = "Continue Watching",
+                    videos = continueWatching,
+                    sharedExoPlayer = sharedExoPlayer,
+                    activeVideoUrl = activeVideoUrl,
+                    onPlayVideo = { video ->
+                        playVideo(
+                            video = video,
+                            activeVideoUrl = activeVideoUrl,
+                            onActiveUrlChanged = onActiveVideoUrlChanged,
+                            player = sharedExoPlayer
+                        )
+                    },
+                    onViewAll = { },
+                    onVideoClick = { video ->
+                        onIntent(HomeIntent.VideoClicked(video))
+                    }
+                )
             }
         }
 
@@ -1418,4 +1579,3 @@ fun HomeScreenPreview() {
     HomeScreen(
         state = dummyState, onIntent = {})
 }
-

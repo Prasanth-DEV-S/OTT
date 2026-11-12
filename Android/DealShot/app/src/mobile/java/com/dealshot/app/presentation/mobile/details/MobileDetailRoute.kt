@@ -29,7 +29,8 @@ fun MobileDetailsRoute(
     onShareClick: () -> Unit = {},
     onLoginClick: () -> Unit = {},
     isPremiumUser: Boolean = false,
-    onSubscribeClick: () -> Unit = {}
+    onSubscribeClick: () -> Unit = {},
+    onReportClick: () -> Unit = {}
 ) {
     val repository = remember {
         VideoDetailsRepositoryImpl(
@@ -110,6 +111,7 @@ fun MobileDetailsRoute(
         isUpdatingLike = state.isUpdatingLike,
         onLoginClick = onLoginClick,
         isPremiumUser = isPremiumUser,
-        onSubscribeClick = onSubscribeClick
+        onSubscribeClick = onSubscribeClick,
+        onReportClick = onReportClick
     )
 }

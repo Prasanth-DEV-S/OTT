@@ -1,6 +1,6 @@
-
 package com.dealshot.app.data.remote.repository
 
+import com.dealshot.app.data.preferences.UserPreferences
 import com.dealshot.app.data.remote.api.AuthApiService
 import com.dealshot.app.data.remote.dto.CurrentUserDto
 import com.dealshot.app.data.remote.dto.SendOtpRequestDto
@@ -10,7 +10,8 @@ import com.dealshot.app.data.remote.dto.VerifyOtpResponseDto
 import retrofit2.HttpException
 
 class AuthRepositoryImpl(
-    private val authApiService: AuthApiService
+    private val authApiService: AuthApiService,
+    private val userPreferences: UserPreferences? = null
 ) : AuthRepository {
 
     override suspend fun sendOtp(
@@ -51,6 +52,16 @@ class AuthRepositoryImpl(
             )
         }
 
-        return body.user
+        val user = body.user
+        userPreferences?.saveMaxProfiles(user.maxProfiles)
+        userPreferences?.saveSubscriptionState(
+            planId = user.subscription.planId,
+            startDate = user.subscription.startDate,
+            endDate = user.subscription.endDate,
+            isActive = user.subscription.isActive,
+            status = user.subscription.status
+        )
+
+        return user
     }
 }

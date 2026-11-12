@@ -49,6 +49,8 @@ class SubscriptionActivity : ComponentActivity() {
                 onIntent = viewModel::onIntent
             )
         }
+
+        com.dealshot.app.ui.GoldenBackgroundHelper.apply(this)
     }
 
     private fun observeEffects() {

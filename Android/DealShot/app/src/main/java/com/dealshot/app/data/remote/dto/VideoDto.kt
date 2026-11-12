@@ -7,11 +7,15 @@ import kotlinx.serialization.Serializable
 data class VideoDto(
 
     @SerialName("_id")
-    val id: String,
+    val id: String = "",
+
+    @SerialName("id")
+    val altId: String? = null,
 
     val slug: String? = null,
     val category: String? = null,
     val description: String? = null,
+    val shortDescription: String? = null,
     val duration: String? = null,
     val durationSeconds: Double? = null,
     val featured: Boolean = false,
@@ -26,8 +30,27 @@ data class VideoDto(
     val videos: String? = null,
     val promoVideoUrl: String? = null,
     val likedAt: String? = null,
-    val likedByMe: Boolean? = null
-)
+    val likedByMe: Boolean? = null,
+    val views: Int = 0,
+    val likesCount: Int = 0,
+    val likes: Int = 0,
+    val isPublished: Boolean = true,
+    val isAvailable: Boolean = true,
+    val language: String? = null
+) {
+    val effectiveId: String
+        get() = id.ifBlank { altId.orEmpty() }
+
+    val effectiveThumbnail: String?
+        get() {
+            val remoteUrl = listOfNotNull(thumbnailUrl, thumbnail)
+                .firstOrNull { it.isNotBlank() && (it.startsWith("http://") || it.startsWith("https://")) }
+            return remoteUrl ?: thumbnailUrl?.ifBlank { null } ?: thumbnail?.ifBlank { null }
+        }
+
+    val totalLikes: Int
+        get() = if (likesCount > 0) likesCount else likes
+}
 
 @Serializable
 data class VideoCategoriesResponseDto(

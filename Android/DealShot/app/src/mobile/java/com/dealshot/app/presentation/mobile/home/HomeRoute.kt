@@ -32,6 +32,7 @@ fun HomeRoute(
     onOpenMyList: () -> Unit,
     onOpenCategory: (String) -> Unit,
     mobileNumber: String,
+    onAddProfile: () -> Unit = {}
 ) {
 
     val context = LocalContext.current
@@ -115,6 +116,7 @@ fun HomeRoute(
 
     HomeScreen(
         state = state,
-        onIntent = viewModel::onIntent
+        onIntent = viewModel::onIntent,
+        onAddProfile = onAddProfile
     )
 }

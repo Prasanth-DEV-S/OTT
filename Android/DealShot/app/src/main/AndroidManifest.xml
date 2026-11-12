@@ -37,6 +37,25 @@
                 <category android:name="${activityLauncherCategory}" />
             </intent-filter>
 
+            <!-- Deep Link: Custom scheme dealshot:// -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dealshot" />
+            </intent-filter>
+
+            <!-- Deep Link: Web URLs https://dealshot.in/video/* and https://dealshot.in/details/* -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="dealshot.in" android:pathPrefix="/video" />
+                <data android:scheme="https" android:host="dealshot.in" android:pathPrefix="/details" />
+                <data android:scheme="http" android:host="dealshot.in" android:pathPrefix="/video" />
+                <data android:scheme="http" android:host="dealshot.in" android:pathPrefix="/details" />
+            </intent-filter>
+
         </activity>
 
     </application>

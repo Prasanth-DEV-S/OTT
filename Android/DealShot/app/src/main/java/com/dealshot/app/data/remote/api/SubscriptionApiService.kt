@@ -1,9 +1,13 @@
 package com.dealshot.app.data.remote.api
 
+import com.dealshot.app.data.remote.dto.CreateSubscriptionRequestDto
 import com.dealshot.app.data.remote.dto.SingleSubscriptionPlanResponseDto
 import com.dealshot.app.data.remote.dto.SubscriptionPlansResponseDto
 import com.dealshot.app.data.subscription.CreateSubscriptionResponseDto
+import retrofit2.Response
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Path
 
 interface SubscriptionApiService {
@@ -16,8 +20,8 @@ interface SubscriptionApiService {
         @Path("planId") planId: String
     ): SingleSubscriptionPlanResponseDto
 
-    @GET("subscription/plans/{planId}")
+    @POST("subscription/create")
     suspend fun createSubscription(
-        @Path("planId") planId: String
-    ): CreateSubscriptionResponseDto
+        @Body request: CreateSubscriptionRequestDto
+    ): Response<CreateSubscriptionResponseDto>
 }

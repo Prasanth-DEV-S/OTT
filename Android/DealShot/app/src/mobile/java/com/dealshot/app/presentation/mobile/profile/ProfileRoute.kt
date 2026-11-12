@@ -28,7 +28,10 @@ fun ProfileRoute(
     onOpenDeviceManagement: () -> Unit,
     onOpenHelpCenter: () -> Unit,
     onLogout: () -> Unit,
-    onDeleteAccount: () -> Unit
+    onDeleteAccount: () -> Unit,
+    onAddProfile: () -> Unit = {},
+    onOpenSubscription: () -> Unit = {},
+    onNavigateToLogin: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val repository = remember {
@@ -64,6 +67,7 @@ fun ProfileRoute(
         viewModel.effect.collect { effect ->
             when (effect) {
                 ProfileEffect.NavigateBack -> onBack()
+                ProfileEffect.NavigateToCreateProfile -> onAddProfile()
                 ProfileEffect.OpenImagePicker -> imagePickerLauncher.launch("image/*")
                 ProfileEffect.OpenDownloadQuality -> onOpenDownloadQuality()
                 ProfileEffect.OpenDeviceManagement -> onOpenDeviceManagement()
@@ -72,6 +76,7 @@ fun ProfileRoute(
                 ProfileEffect.DeleteAccount -> onDeleteAccount()
                 ProfileEffect.ProfileCreated,
                 ProfileEffect.ProfileUpdated -> Unit
+                is ProfileEffect.ProfileDeleted -> Unit
                 is ProfileEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
@@ -79,8 +84,64 @@ fun ProfileRoute(
         }
     }
 
+    val displayProfiles = remember(state.profiles) {
+        state.profiles.map { dto ->
+            ProfileListItem(
+                id = dto.profileId,
+                name = dto.name,
+                avatarUrl = dto.avatarUrl.takeIf { !it.isNullOrBlank() } ?: dto.avatar,
+                isPrimary = dto.isDefault
+            )
+        }
+    }
+
+    val subscriptionLabel = if (com.dealshot.app.data.subscription.hasPremiumAccess(state.subscriptionState)) {
+        state.subscriptionState.planName?.ifBlank { "Premium" } ?: "Premium"
+    } else {
+        "Free"
+    }
+
+    val accountEmail = state.accountEmail.ifBlank { state.email }
+    val accountGender = state.accountGender.ifBlank { state.gender }
+
     ProfileScreen(
         state = state,
-        onIntent = viewModel::onIntent
+        onIntent = viewModel::onIntent,
+        email = accountEmail,
+        gender = accountGender,
+        subscriptionLabel = subscriptionLabel,
+        profiles = displayProfiles,
+        selectedProfileId = state.selectedProfile?.profileId ?: state.profiles.firstOrNull { it.isActive }?.profileId,
+        isSaving = state.isSaving,
+        saveError = state.error,
+        isDeleting = state.isDeletingAccount,
+        deleteError = state.deleteAccountError,
+        onSaveProfile = { name, email, gender, avatarId, avatarUrl ->
+            viewModel.onIntent(ProfileIntent.UsernameChanged(name))
+            viewModel.onIntent(ProfileIntent.EmailChanged(email))
+            if (gender.isNotBlank()) {
+                viewModel.onIntent(ProfileIntent.GenderChanged(gender))
+            }
+            if (!avatarId.isNullOrBlank()) {
+                viewModel.onIntent(ProfileIntent.SelectedAvatarIdChanged(avatarId))
+                viewModel.onIntent(ProfileIntent.AvatarChanged(avatarId))
+            } else if (!avatarUrl.isNullOrBlank()) {
+                viewModel.onIntent(ProfileIntent.AvatarChanged(avatarUrl))
+            }
+            viewModel.onIntent(ProfileIntent.SaveProfileClicked)
+        },
+        onProfileSelected = { id ->
+            state.profiles.firstOrNull { it.profileId == id }?.let { dto ->
+                viewModel.onIntent(ProfileIntent.SelectProfile(dto))
+            }
+        },
+        onRemoveProfile = { profileId ->
+            viewModel.onIntent(ProfileIntent.DeleteProfile(profileId))
+        },
+        onDeleteAccount = onDeleteAccount,
+        onAddProfile = onAddProfile,
+        onViewSubscription = onOpenSubscription,
+        onUnlockPremium = onOpenSubscription,
+        onLogin = onNavigateToLogin
     )
 }

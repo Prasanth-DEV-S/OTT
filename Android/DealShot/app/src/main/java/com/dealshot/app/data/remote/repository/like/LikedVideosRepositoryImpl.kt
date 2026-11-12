@@ -1,15 +1,21 @@
 package com.dealshot.app.data.remote.repository.like
 
-import com.dealshot.app.data.remote.dto.like.LikeVideoRequestDto
 import com.dealshot.app.data.remote.api.LikedVideosApiService
 import com.dealshot.app.data.remote.dto.like.LikeMutationResponseDto
+import com.dealshot.app.data.remote.dto.like.LikeVideoRequestDto
+import com.dealshot.app.data.remote.dto.VideoDto
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import retrofit2.HttpException
 
 class LikedVideosRepositoryImpl(
     private val api: LikedVideosApiService
 ) : LikedVideosRepository {
 
-    override suspend fun getLikedVideos() =
+    private val json = Json { ignoreUnknownKeys = true }
+
+    override suspend fun getLikedVideos(): List<VideoDto> =
         api.getLikedVideos().let { response ->
             if (!response.isSuccessful) {
                 throw HttpException(response)
@@ -33,11 +39,11 @@ class LikedVideosRepositoryImpl(
         }
 
         val response = try {
-            val res = api.likeVideo(LikeVideoRequestDto(videoId = videoId))
-            if (res.isSuccessful) res else api.likeVideoPath(videoId)
+            val res = api.likeVideoPath(videoId)
+            if (res.isSuccessful) res else api.likeVideo(LikeVideoRequestDto(videoId = videoId))
         } catch (e: Exception) {
             try {
-                api.likeVideoPath(videoId)
+                api.likeVideo(LikeVideoRequestDto(videoId = videoId))
             } catch (ex: Exception) {
                 throw e
             }
@@ -57,6 +63,30 @@ class LikedVideosRepositoryImpl(
         return body
     }
 
+    override suspend fun toggleVideoLike(
+        videoId: String
+    ): Result<LikeMutationResponseDto> {
+        val cleanId = videoId.trim()
+        if (cleanId.isBlank()) return Result.failure(IllegalArgumentException("Video ID cannot be empty"))
+
+        return try {
+            val response = api.likeVideoPath(cleanId)
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null && body.success) {
+                    Result.success(body)
+                } else {
+                    Result.failure(Exception(body?.message ?: "Failed to update video like status"))
+                }
+            } else {
+                val errorMsg = parseErrorMessage(response) ?: "Failed to update video like status (${response.code()})"
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun getVideoLikeStatus(
         videoId: String
     ): Boolean {
@@ -74,5 +104,21 @@ class LikedVideosRepositoryImpl(
         }
 
         return body.data.myLikeStatus
+    }
+
+    private fun parseErrorMessage(response: retrofit2.Response<*>): String? {
+        return try {
+            val errorBody = response.errorBody()?.string()
+            if (!errorBody.isNullOrBlank()) {
+                val element = json.parseToJsonElement(errorBody)
+                if (element is JsonObject) {
+                    element["message"]?.let {
+                        if (it is JsonPrimitive) it.content else null
+                    }
+                } else null
+            } else null
+        } catch (e: Exception) {
+            null
+        }
     }
 }

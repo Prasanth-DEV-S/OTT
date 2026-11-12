@@ -224,6 +224,17 @@ class OtpViewModel(private val userPreferences: UserPreferences) : ViewModel() {
                     lastLoginAt = user.lastLoginAt
                 )
 
+                // Refresh authoritative user details via /auth/me
+                try {
+                    val authRepo = com.dealshot.app.data.remote.repository.AuthRepositoryImpl(
+                        authApiService = ApiClient.authApi,
+                        userPreferences = userPreferences
+                    )
+                    authRepo.getCurrentUser()
+                } catch (e: Exception) {
+                    Log.w("OtpViewModel", "Failed to refresh /auth/me after OTP verification", e)
+                }
+
                 kotlinx.coroutines.delay(1200)
 
                 _effect.send(

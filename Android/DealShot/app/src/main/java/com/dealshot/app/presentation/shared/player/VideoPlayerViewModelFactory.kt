@@ -2,11 +2,14 @@ package com.dealshot.app.presentation.shared.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.dealshot.app.data.preferences.GuestPreviewRepository
+import com.dealshot.app.data.preferences.UserPreferences
 import com.dealshot.app.data.remote.repository.WatchProgressRepository
 
 class VideoPlayerViewModelFactory(
     private val watchProgressRepository: WatchProgressRepository,
-    private val guestPreviewRepository: com.dealshot.app.data.preferences.GuestPreviewRepository
+    private val guestPreviewRepository: GuestPreviewRepository,
+    private val userPreferences: UserPreferences? = null
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -16,7 +19,8 @@ class VideoPlayerViewModelFactory(
         if (modelClass.isAssignableFrom(VideoPlayerViewModel::class.java)) {
             return VideoPlayerViewModel(
                 watchProgressRepository = watchProgressRepository,
-                guestPreviewRepository = guestPreviewRepository
+                guestPreviewRepository = guestPreviewRepository,
+                userPreferences = userPreferences
             ) as T
         }
 

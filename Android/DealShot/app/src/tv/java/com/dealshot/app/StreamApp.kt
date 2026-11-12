@@ -82,22 +82,22 @@ private object TvRoutes {
 }
 
 private fun VideoDto.toVideo(): Video = Video(
-    id = id,
+    id = effectiveId,
     title = title.orEmpty(),
     description = description.orEmpty(),
     duration = duration.orEmpty(),
-    thumbnail = thumbnailUrl.orEmpty(),
+    thumbnail = effectiveThumbnail.orEmpty(),
     url = videoUrl.orEmpty(),
     category = category.orEmpty(),
-    apiId = id,
-    thumbnailUrl = thumbnailUrl.orEmpty(),
+    apiId = effectiveId,
+    thumbnailUrl = effectiveThumbnail.orEmpty(),
     isPremium = isPremium,
     featured = featured
 )
 
 /**
  * Loads a single video by id using the same approach as mobile
- * (VideoRepositoryImpl.getVideos() then match on id).
+ * (VideoRepositoryImpl.getVideos() then match on id, falling back to resolveSharedVideo).
  * Returns null if not found or on error.
  */
 private suspend fun loadVideo(
@@ -106,9 +106,12 @@ private suspend fun loadVideo(
     tag: String
 ): Video? {
     return try {
-        val dto = repository.getVideos().firstOrNull { it.id == videoId }
-        if (dto == null) Log.e(tag, "Video not found: $videoId")
-        dto?.toVideo()
+        val dto = repository.getVideos().firstOrNull { it.id == videoId || it.altId == videoId }
+        if (dto != null) {
+            dto.toVideo()
+        } else {
+            repository.resolveSharedVideo(videoId).getOrNull()?.toVideoDto()?.toVideo()
+        }
     } catch (e: Exception) {
         Log.e(tag, "Failed to load video: $videoId", e)
         null
@@ -117,7 +120,7 @@ private suspend fun loadVideo(
 
 @OptIn(UnstableApi::class)
 @Composable
-fun StreamApp() {
+fun StreamApp(initialDeepLinkId: String? = null) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -166,9 +169,7 @@ fun StreamApp() {
         NavHost(
             navController = navController,
             startDestination = TvRoutes.START,
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
+            modifier = Modifier.fillMaxSize()
         ) {
 
             // START (session check)

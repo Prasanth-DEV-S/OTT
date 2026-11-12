@@ -33,19 +33,37 @@ fun TvCategoryRoute(
         isLoading = true
         hasError = false
         try {
-            val allVideos = repository.getVideos()
-
-            videos = if (category.equals("Premium", ignoreCase = true)) {
-                allVideos.filter {
+            if (category.equals("Premium", ignoreCase = true)) {
+                val allVideos = repository.getVideos()
+                videos = allVideos.filter {
                     it.isPremium && !it.videoUrl.isNullOrBlank()
                 }
             } else {
-                allVideos.filter {
-                    it.category
-                        ?.trim()
-                        ?.equals(category.trim(), ignoreCase = true) == true &&
-                            !it.videoUrl.isNullOrBlank()
-                }
+                val result = repository.getVideosByCategory(category)
+                result.fold(
+                    onSuccess = { catVideos ->
+                        if (catVideos.isNotEmpty()) {
+                            videos = catVideos
+                        } else {
+                            val allVideos = repository.getVideos()
+                            videos = allVideos.filter {
+                                it.category?.trim()?.equals(category.trim(), ignoreCase = true) == true &&
+                                        !it.videoUrl.isNullOrBlank()
+                            }
+                        }
+                    },
+                    onFailure = {
+                        try {
+                            val allVideos = repository.getVideos()
+                            videos = allVideos.filter {
+                                it.category?.trim()?.equals(category.trim(), ignoreCase = true) == true &&
+                                        !it.videoUrl.isNullOrBlank()
+                            }
+                        } catch (_: Exception) {
+                            hasError = true
+                        }
+                    }
+                )
             }
         } catch (e: Exception) {
             hasError = true

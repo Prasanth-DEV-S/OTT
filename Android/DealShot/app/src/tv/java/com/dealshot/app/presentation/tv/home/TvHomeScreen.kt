@@ -345,7 +345,7 @@ private fun TvHomeContent(
     when {
         state.selectedSection.equals("Home", ignoreCase = true) -> {
             heroVideos = state.bannerVideos
-            rows = playable
+            val categoryRows = playable
                 .map { it.category!!.trim() }
                 .distinct()
                 .sorted()
@@ -354,6 +354,12 @@ private fun TvHomeContent(
                         it.category?.trim()?.equals(cat, ignoreCase = true) == true
                     }
                 }
+            val hasPremium = com.dealshot.app.data.subscription.hasPremiumAccess(state.subscriptionState)
+            rows = if (!hasPremium && state.continueWatching.isNotEmpty()) {
+                listOf("Continue Watching" to state.continueWatching) + categoryRows
+            } else {
+                categoryRows
+            }
         }
 
         state.selectedSection.equals("Premium", ignoreCase = true) -> {

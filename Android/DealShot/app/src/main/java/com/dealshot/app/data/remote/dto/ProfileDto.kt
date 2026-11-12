@@ -15,6 +15,8 @@ data class ProfileDto(
     val userId: String? = null,
     val name: String = "",
     val email: String? = null,
+    val avatarId: String? = null,
+    val avatarUrl: String? = null,
     val avatar: String? = null,
     val isKidsProfile: Boolean = false,
     val isDefault: Boolean = false,
@@ -33,12 +35,17 @@ data class ProfileDto(
         get() = _id.takeIf { !it.isNullOrBlank() }
             ?: id.takeIf { !it.isNullOrBlank() }
             ?: ""
+
+    val effectiveAvatar: String
+        get() = avatarUrl.takeIf { !it.isNullOrBlank() }
+            ?: avatar.takeIf { !it.isNullOrBlank() }
+            ?: ""
 }
 
 @Serializable
 data class CreateProfileRequestDto(
     val name: String,
-    val avatar: String = "",
+    val avatarId: String? = null,
     val isKidsProfile: Boolean = false,
     val language: String = "en",
     val maturityLevel: String = MaturityLevel.ADULT,
@@ -50,12 +57,17 @@ data class CreateProfileRequestDto(
 data class UpdateProfileRequestDto(
     val name: String? = null,
     val email: String? = null,
-    val avatar: String? = null,
+    val avatarId: String? = null,
     val isKidsProfile: Boolean? = null,
     val language: String? = null,
     val maturityLevel: String? = null,
     val autoplayNext: Boolean? = null,
     val autoplayPreviews: Boolean? = null
+)
+
+@Serializable
+data class UpdateAvatarRequestDto(
+    val avatarId: String? = null
 )
 
 @Serializable

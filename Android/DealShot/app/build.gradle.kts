@@ -83,6 +83,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation("io.coil-kt:coil-svg:2.7.0")
 
     // Extended Vector Asset UI Elements
     implementation(libs.androidx.material.icons.extended)

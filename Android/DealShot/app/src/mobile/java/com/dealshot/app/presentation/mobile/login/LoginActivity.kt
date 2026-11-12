@@ -46,5 +46,7 @@ class LoginActivity : ComponentActivity() {
                 )
             }
         }
+
+        com.dealshot.app.ui.GoldenBackgroundHelper.apply(this)
     }
 }

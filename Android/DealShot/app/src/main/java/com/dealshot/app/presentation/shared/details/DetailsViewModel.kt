@@ -138,15 +138,26 @@ class DetailsViewModel(
             }
 
             try {
-                val response = likedVideosRepository.likeVideo(videoId)
-
-                _uiState.update {
-                    it.copy(
-                        isLiked = response.isLiked,
-                        isUpdatingLike = false,
-                        error = null
-                    )
-                }
+                val result = likedVideosRepository.toggleVideoLike(videoId)
+                result.fold(
+                    onSuccess = { response ->
+                        _uiState.update {
+                            it.copy(
+                                isLiked = response.isLiked,
+                                isUpdatingLike = false,
+                                error = null
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        _uiState.update {
+                            it.copy(
+                                isUpdatingLike = false,
+                                error = AppErrorHandler.getUserMessage(error)
+                            )
+                        }
+                    }
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -1,6 +1,8 @@
 package com.dealshot.app.data.subscription
 
 import com.dealshot.app.data.remote.api.SubscriptionApiService
+import com.dealshot.app.data.remote.dto.CreateSubscriptionRequestDto
+import retrofit2.HttpException
 
 class SubscriptionRepositoryImpl(
     private val api: SubscriptionApiService
@@ -23,26 +25,21 @@ class SubscriptionRepositoryImpl(
     override suspend fun createSubscription(
         planId: String
     ): CreateSubscriptionResponseDto {
-        return try {
-            api.createSubscription(planId)
-        } catch (e: Exception) {
-            CreateSubscriptionResponseDto(
-                success = true,
-                message = "Subscription activated successfully",
-                data = CreateSubscriptionDataDto(
-                    subscriptionId = planId,
-                    plan = CreatedSubscriptionPlanDto(
-                        id = planId,
-                        name = "Subscription",
-                        code = "SUB",
-                        durationDays = 30
-                    ),
-                    amount = 0,
-                    currency = "INR",
-                    subscriptionStatus = "ACTIVE",
-                    paymentStatus = "SUCCESS"
-                )
-            )
+        val cleanId = planId.trim()
+        require(cleanId.isNotBlank()) { "Plan ID cannot be empty" }
+
+        val response = api.createSubscription(CreateSubscriptionRequestDto(planId = cleanId))
+        if (!response.isSuccessful) {
+            throw HttpException(response)
         }
+
+        val body = response.body()
+            ?: throw IllegalStateException("Subscription creation response empty")
+
+        if (!body.success) {
+            throw IllegalStateException(body.message.ifBlank { "Failed to initiate subscription" })
+        }
+
+        return body
     }
 }

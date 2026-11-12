@@ -52,6 +52,8 @@ class OtpActivity : ComponentActivity() {
                 )
             }
         }
+
+        com.dealshot.app.ui.GoldenBackgroundHelper.apply(this)
     }
     companion object {
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"

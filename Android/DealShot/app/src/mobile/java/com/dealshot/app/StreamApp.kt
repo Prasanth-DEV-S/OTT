@@ -7,6 +7,10 @@ import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -52,8 +58,19 @@ import com.dealshot.app.presentation.mobile.login.LoginRoute
 import com.dealshot.app.presentation.mobile.otp.OtpRoute
 import com.dealshot.app.presentation.mobile.player.MobilePlayerRoute
 import com.dealshot.app.presentation.mobile.profile.ProfileRoute
+import com.dealshot.app.presentation.mobile.report.ReportRoute
 import com.dealshot.app.presentation.mobile.subscription.MobileSubscriptionRoute
 import com.dealshot.app.presentation.mobile.subscription.SubscriptionActivity
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import com.dealshot.app.presentation.mobile.profile.CreateProfileRoute
+import com.dealshot.app.presentation.mobile.profile.CreateProfileScreen
+import com.dealshot.app.data.remote.repository.report.MockReportOutcome
+import com.dealshot.app.data.remote.repository.report.MockReportRepository
 import com.dealshot.app.presentation.shared.auth.SessionViewModelFactory
 import com.dealshot.app.presentation.shared.like.LikedVideosViewModel
 import com.dealshot.app.presentation.shared.like.LikedVideosViewModelFactory
@@ -81,6 +98,12 @@ private object StreamRoutes {
 
     const val PLAYER = "player/{videoId}"
     const val DETAILS = "details/{videoId}"
+    const val REPORT = "report/{videoId}?title={title}&thumbnail={thumbnail}"
+
+    const val CREATE_PROFILE = "create_profile"
+    fun report(videoId: String, title: String, thumbnail: String): String {
+        return "report/${Uri.encode(videoId)}?title=${Uri.encode(title)}&thumbnail=${Uri.encode(thumbnail)}"
+    }
 
     const val LIKED_VIDEOS = "liked_videos"
     const val MY_LIST = "my_list"
@@ -128,7 +151,7 @@ fun String.isValidIndianNumber(): Boolean {
 
 @OptIn(UnstableApi::class)
 @Composable
-fun StreamApp() {
+fun StreamApp(initialDeepLinkId: String? = null) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val userPreferences = remember {
@@ -162,14 +185,20 @@ fun StreamApp() {
 
     val navController = rememberNavController()
 
+    LaunchedEffect(initialDeepLinkId) {
+        if (!initialDeepLinkId.isNullOrBlank()) {
+            navController.navigate(StreamRoutes.details(initialDeepLinkId)) {
+                launchSingleTop = true
+            }
+        }
+    }
+
     StreamTheme {
 
         NavHost(
             navController = navController,
             startDestination = StreamRoutes.START,
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
+            modifier = Modifier.fillMaxSize()
         ) {
 
             composable(StreamRoutes.START) {
@@ -238,6 +267,10 @@ fun StreamApp() {
                         navController.popBackStack()
                     },
 
+                    onNavigateToLogin = {
+                        navController.navigate(StreamRoutes.login(redirect = "profile"))
+                    },
+
                     onOpenDownloadQuality = {
                         // We will implement this next.
                     },
@@ -265,7 +298,23 @@ fun StreamApp() {
                     },
 
                     onDeleteAccount = {
-                        // We will implement this after the API is confirmed.
+                        coroutineScope.launch {
+                            userPreferences.clearUser()
+                        }
+                        PreferenceManager(context).clearAll()
+                        guestPreviewRepository.clearPendingResumeState()
+                        navController.navigate(StreamRoutes.home("")) {
+                            popUpTo(0) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    },
+                    onAddProfile = {
+                        navController.navigate(StreamRoutes.CREATE_PROFILE) { launchSingleTop = true }
+                    },
+                    onOpenSubscription = {
+                        navController.navigate(StreamRoutes.SUBSCRIPTION) { launchSingleTop = true }
                     }
                 )
             }
@@ -356,6 +405,9 @@ fun StreamApp() {
                             StreamRoutes.category(category)
                         )
                     },
+                    onAddProfile = {
+                        navController.navigate(StreamRoutes.CREATE_PROFILE) { launchSingleTop = true }
+                    }
                 )
             }
 
@@ -549,6 +601,17 @@ fun StreamApp() {
                     navArgument("videoId") {
                         type = NavType.StringType
                     }
+                ),
+                deepLinks = listOf(
+                    androidx.navigation.navDeepLink { uriPattern = "dealshot://video/{videoId}" },
+                    androidx.navigation.navDeepLink { uriPattern = "dealshot://details/{videoId}" },
+                    androidx.navigation.navDeepLink { uriPattern = "https://dealshot.in/video/{videoId}" },
+                    androidx.navigation.navDeepLink { uriPattern = "https://dealshot.in/details/{videoId}" },
+                    androidx.navigation.navDeepLink { uriPattern = "http://dealshot.in/video/{videoId}" },
+                    androidx.navigation.navDeepLink { uriPattern = "http://dealshot.in/details/{videoId}" },
+                    androidx.navigation.navDeepLink { uriPattern = "dealshot://share/{videoId}" },
+                    androidx.navigation.navDeepLink { uriPattern = "https://dealshot.in/share/{videoId}" },
+                    androidx.navigation.navDeepLink { uriPattern = "http://dealshot.in/share/{videoId}" }
                 )
             )
             { backStackEntry ->
@@ -569,10 +632,15 @@ fun StreamApp() {
                     mutableStateOf(true)
                 }
 
+                var errorMessage by remember {
+                    mutableStateOf<String?>(null)
+                }
+
                 LaunchedEffect(videoId) {
 
                     if (videoId.isNullOrBlank()) {
-                        navController.popBackStack()
+                        errorMessage = "Invalid video ID"
+                        isLoading = false
                         return@LaunchedEffect
                     }
 
@@ -583,31 +651,50 @@ fun StreamApp() {
 
                         val dto =
                             response.firstOrNull {
-                                it.id == videoId
+                                it.id == videoId || it.altId == videoId
                             }
 
                         if (dto != null) {
 
                             video = Video(
-                                id = dto.id,
+                                id = dto.effectiveId,
                                 title = dto.title.orEmpty(),
                                 description = dto.description.orEmpty(),
                                 duration = dto.duration.orEmpty(),
-                                thumbnail = dto.thumbnailUrl.orEmpty(),
+                                thumbnail = dto.effectiveThumbnail,
                                 url = dto.videoUrl.orEmpty(),
                                 category = dto.category.orEmpty(),
-                                apiId = dto.id,
-                                thumbnailUrl = dto.thumbnailUrl.orEmpty(),
+                                apiId = dto.effectiveId,
+                                thumbnailUrl = dto.effectiveThumbnail,
                                 isPremium = dto.isPremium,
                                 promoVideoUrl = dto.promoVideoUrl.orEmpty(),
                                 featured = dto.featured
                             )
 
                         } else {
-
-                            android.util.Log.e(
-                                "DETAILS",
-                                "Video not found: $videoId"
+                            // Video not found in memory/list, resolve public share link: GET /videos/share/resolve/{videoId}
+                            val resolveResult = videoRepository.resolveSharedVideo(videoId)
+                            resolveResult.fold(
+                                onSuccess = { resolvedDto ->
+                                    val videoDto = resolvedDto.toVideoDto()
+                                    video = Video(
+                                        id = videoDto.effectiveId,
+                                        title = videoDto.title.orEmpty(),
+                                        description = videoDto.description.orEmpty(),
+                                        duration = videoDto.duration.orEmpty(),
+                                        thumbnail = videoDto.effectiveThumbnail,
+                                        url = videoDto.videoUrl.orEmpty(),
+                                        category = videoDto.category.orEmpty(),
+                                        apiId = videoDto.effectiveId,
+                                        thumbnailUrl = videoDto.effectiveThumbnail,
+                                        isPremium = videoDto.isPremium,
+                                        promoVideoUrl = videoDto.promoVideoUrl.orEmpty(),
+                                        featured = videoDto.featured
+                                    )
+                                },
+                                onFailure = { error ->
+                                    errorMessage = error.message ?: "This video is not available"
+                                }
                             )
                         }
 
@@ -618,6 +705,7 @@ fun StreamApp() {
                             "Failed to load video: $videoId",
                             e
                         )
+                        errorMessage = e.message ?: "Failed to load video"
 
                     } finally {
                         isLoading = false
@@ -627,10 +715,14 @@ fun StreamApp() {
                 when {
                     isLoading -> {
                         Box(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF120E0A)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("Loading...")
+                            androidx.compose.material3.CircularProgressIndicator(
+                                color = com.dealshot.app.ui.theme.GoldPrimary
+                            )
                         }
                     }
 
@@ -703,14 +795,56 @@ fun StreamApp() {
                             onSubscribeClick = {
                                 navController.navigate(StreamRoutes.SUBSCRIPTION)
                                 //                                navController.navigate(StreamRoutes.SUBSCRIPTION)
+                            },
+                            onReportClick = {
+                                video?.let { v ->
+                                    navController.navigate(
+                                        StreamRoutes.report(
+                                            videoId = v.id,
+                                            title = v.title,
+                                            thumbnail = (v.thumbnailUrl ?: v.thumbnail).orEmpty()
+                                        )
+                                    )
+                                }
                             }
                         )
                     }
 
                     else -> {
-
-                        LaunchedEffect(Unit) {
-                            navController.popBackStack()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF120E0A))
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            androidx.compose.foundation.layout.Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = com.dealshot.app.ui.theme.GoldPrimary,
+                                    modifier = Modifier.size(56.dp)
+                                )
+                                Text(
+                                    text = errorMessage ?: "This video is not available",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                androidx.compose.material3.Button(
+                                    onClick = { navController.popBackStack() },
+                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                        containerColor = com.dealshot.app.ui.theme.GoldPrimary,
+                                        contentColor = Color(0xFF161108)
+                                    ),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Go Back", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
@@ -756,31 +890,52 @@ fun StreamApp() {
 
                         val dto =
                             videos.firstOrNull {
-                                it.id == videoId
+                                it.id == videoId || it.altId == videoId
                             }
 
                         if (dto != null) {
 
                             video = Video(
-                                id = dto.id,
+                                id = dto.effectiveId,
                                 title = dto.title.orEmpty(),
                                 description = dto.description.orEmpty(),
                                 duration = dto.duration.orEmpty(),
-                                thumbnail = dto.thumbnailUrl.orEmpty(),
+                                thumbnail = dto.effectiveThumbnail,
                                 url = dto.videoUrl.orEmpty(),
                                 category = dto.category.orEmpty(),
-                                apiId = dto.id,
-                                thumbnailUrl = dto.thumbnailUrl.orEmpty(),
+                                apiId = dto.effectiveId,
+                                thumbnailUrl = dto.effectiveThumbnail,
                                 isPremium = dto.isPremium,
                                 featured = dto.featured,
                                 promoVideoUrl = dto.promoVideoUrl.orEmpty()
                             )
 
                         } else {
-
-                            Log.e(
-                                "PLAYER_ROUTE",
-                                "Video not found: $videoId"
+                            val resolveResult = videoRepository.resolveSharedVideo(videoId)
+                            resolveResult.fold(
+                                onSuccess = { resolvedDto ->
+                                    val videoDto = resolvedDto.toVideoDto()
+                                    video = Video(
+                                        id = videoDto.effectiveId,
+                                        title = videoDto.title.orEmpty(),
+                                        description = videoDto.description.orEmpty(),
+                                        duration = videoDto.duration.orEmpty(),
+                                        thumbnail = videoDto.effectiveThumbnail,
+                                        url = videoDto.videoUrl.orEmpty(),
+                                        category = videoDto.category.orEmpty(),
+                                        apiId = videoDto.effectiveId,
+                                        thumbnailUrl = videoDto.effectiveThumbnail,
+                                        isPremium = videoDto.isPremium,
+                                        featured = videoDto.featured,
+                                        promoVideoUrl = videoDto.promoVideoUrl.orEmpty()
+                                    )
+                                },
+                                onFailure = {
+                                    Log.e(
+                                        "PLAYER_ROUTE",
+                                        "Video not found: $videoId"
+                                    )
+                                }
                             )
                         }
 
@@ -799,9 +954,7 @@ fun StreamApp() {
                 }
 
                 when {
-
                     isLoading -> {
-
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -814,133 +967,82 @@ fun StreamApp() {
                     }
 
                     video != null -> {
-
-//                            MobilePlayerRoute(
-//                                video = video!!,
-//
-//                                onBack = {
-//                                    navController.navigate(StreamRoutes.home("")) {
-//                                        popUpTo(0) { inclusive = true }
-//                                        launchSingleTop = true
-//                                    }
-//                                },
-//                                viewModelFactory = VideoPlayerViewModelFactory(
-//                                watchProgressRepository = watchProgressRepository,
-//                                guestPreviewRepository = guestPreviewRepository
-//                            ),
-//
-//                            onOpenSubscription = {
-//                                navController.navigate(StreamRoutes.login(redirect = "player")) {
-//                                    launchSingleTop = true
-//                                }
-//                            }
-//                            /*Subscription to login 14102026*/
-//                            /*onOpenSubscription = { selectedVideo ->
-//
-//                                context.startActivity(
-//                                    Intent(
-//                                        context,
-//                                        SubscriptionActivity::class.java
-//                                    ).apply {
-//
-//                                        putExtra(
-//                                            "title",
-//                                            selectedVideo.title
-//                                        )
-//
-//                                        putExtra(
-//                                            "description",
-//                                            selectedVideo.description
-//                                        )
-//
-//                                        putExtra(
-//                                            "url",
-//                                            selectedVideo.url
-//                                        )
-//                                    }
-//                                )
-//                            }*/
-//                        )
-                        MobileDetailsRoute(
+                        MobilePlayerRoute(
                             video = video!!,
                             onBack = {
                                 navController.popBackStack()
                             },
-                            onPlayVideo = {
-                                navController.navigate(
-                                    StreamRoutes.player(video!!.id)
-                                )
-                            },
-                            onShareClick = {
-                                val currentVideo = video ?: return@MobileDetailsRoute
-                                val shareText = buildString {
-                                    append(currentVideo.title)
-
-                                    if (currentVideo.description.isNotBlank()) {
-                                        append("\n\n")
-                                        append(currentVideo.description)
-                                    }
-
-                                    if (currentVideo.url.isNotBlank()) {
-                                        append("\n\n")
-                                        append(currentVideo.url)
-                                    }
-                                }
-
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, currentVideo.title)
-                                    putExtra(Intent.EXTRA_TEXT, shareText)
-                                }
-
+                            viewModelFactory = VideoPlayerViewModelFactory(
+                                watchProgressRepository = watchProgressRepository,
+                                guestPreviewRepository = guestPreviewRepository,
+                                userPreferences = userPreferences
+                            ),
+                            onOpenSubscription = { selectedVideo ->
                                 context.startActivity(
-                                    Intent.createChooser(shareIntent, "Share video")
+                                    Intent(context, SubscriptionActivity::class.java).apply {
+                                        putExtra("title", selectedVideo.title)
+                                        putExtra("description", selectedVideo.description)
+                                        putExtra("url", selectedVideo.url)
+                                    }
                                 )
-                            },
-                            onLikeClick = {
-//                                navController.navigate(
-//                                    StreamRoutes.LOGIN
-//                                ) {
-//                                    popUpTo(
-//                                        StreamRoutes.HOME
-//                                    ) {
-//                                        inclusive = true
-//                                    }
-//                                }
-                            },
-                            onMyListClick = {
-//                                navController.navigate(
-//                                    StreamRoutes.LOGIN
-//                                ) {
-//                                    popUpTo(
-//                                        StreamRoutes.HOME
-//                                    ) {
-//                                        inclusive = true
-//                                    }
-//                                }
-                            },
-                            onLoginClick = {
-                                navController.navigate(
-                                    StreamRoutes.login(redirect = "details")
-                                )
-                            },
-                            isPremiumUser = video!!.isPremium && false, // see note below
-                            onSubscribeClick = {
-                                navController.navigate(StreamRoutes.SUBSCRIPTION)
-//                                navController.navigate(StreamRoutes.SUBSCRIPTION)
                             }
                         )
                     }
 
                     else -> {
-
                         LaunchedEffect(Unit) {
                             navController.popBackStack()
                         }
                     }
                 }
             }
+
+            // CREATE PROFILE
+            composable(
+                route = StreamRoutes.CREATE_PROFILE,
+                enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
+                exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 4 }) + fadeOut() },
+                popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 4 }) + fadeIn() },
+                popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
+            ) {
+                CreateProfileRoute(
+                    userPreferences = userPreferences,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            // REPORT
+            composable(
+                route = StreamRoutes.REPORT,
+                arguments = listOf(
+                    navArgument("videoId") { type = NavType.StringType },
+                    navArgument("title") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("thumbnail") { type = NavType.StringType; defaultValue = "" }
+                ),
+                enterTransition = { slideInVertically(initialOffsetY = { it / 3 }) + fadeIn() },
+                exitTransition = { fadeOut() },
+                popEnterTransition = { fadeIn() },
+                popExitTransition = { slideOutVertically(targetOffsetY = { it / 3 }) + fadeOut() }
+            ) { backStackEntry ->
+
+                val videoId = backStackEntry.arguments?.getString("videoId").orEmpty()
+                val title = backStackEntry.arguments?.getString("title").orEmpty()
+                val thumbnail = backStackEntry.arguments?.getString("thumbnail").orEmpty()
+
+                // TODO: swap for ReportRepositoryImpl(<your ReportApiService>) when the backend is ready
+                val reportRepository = remember {
+                    MockReportRepository(MockReportOutcome.SIMULATED_SUCCESS)
+                }
+
+                ReportRoute(
+                    videoId = videoId,
+                    videoTitle = title,
+                    thumbnailUrl = thumbnail,
+                    repository = reportRepository,
+                    isLoggedIn = { !PreferenceManager(context).getString("Mobile_No").isNullOrBlank() },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }
-
