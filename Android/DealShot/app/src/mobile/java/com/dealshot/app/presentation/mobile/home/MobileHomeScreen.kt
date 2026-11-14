@@ -3,6 +3,7 @@ package com.dealshot.app.presentation.mobile.home
 import android.util.Log
 import android.widget.Toast
 import android.view.LayoutInflater
+import com.dealshot.app.util.findActivity
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
@@ -99,6 +100,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.dealshot.app.R
+import com.dealshot.app.data.preferences.PreferenceManager
 import com.dealshot.app.data.preferences.UserPreferences
 import com.dealshot.app.data.remote.dto.VideoDto
 import com.dealshot.app.presentation.shared.home.HomeIntent
@@ -123,20 +125,31 @@ fun HomeScreen(
     val sections = state.sections
     // 1. Single shared ExoPlayer instance initialized once for the whole screen
     val sharedExoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
+        com.dealshot.app.core.media.ExoPlayerFactory.createExoPlayer(context).apply {
             volume = 0f
             repeatMode = Player.REPEAT_MODE_ONE
         }
     }
 
     val featuredExoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
+        com.dealshot.app.core.media.ExoPlayerFactory.createExoPlayer(context).apply {
             volume = 0f
             repeatMode = Player.REPEAT_MODE_ONE
         }
     }
     var showProfileDialog by remember {
         mutableStateOf(false)
+    }
+
+    val activity = remember(context) { context.findActivity() }
+    androidx.activity.compose.BackHandler {
+        if (showProfileDialog) {
+            showProfileDialog = false
+        } else if (!state.selectedSection.equals("Home", ignoreCase = true)) {
+            onIntent(HomeIntent.SectionClicked("Home"))
+        } else {
+            activity?.finish()
+        }
     }
 
     // Tracks the globally playing video across all rows and sections
@@ -377,8 +390,14 @@ fun HomeScreen(
                 )
             }
         } else {
-            val availableCategories =
-                state.categories.map { it.name.trim() }.filter { it.isNotBlank() }.distinct()
+            val availableCategories = state.categories
+                .map { it.name.trim() }
+                .filter { name ->
+                    name.isNotBlank() &&
+                    !name.equals("Banner", ignoreCase = true) &&
+                    !name.equals("images", ignoreCase = true)
+                }
+                .distinct()
             when {
                 state.selectedSection.equals("Home", ignoreCase = true) -> {
                     HomeContent(
@@ -473,12 +492,18 @@ private fun PremiumContent(
                         onIntent(HomeIntent.VideoClicked(video))
                     },
                     onMyList = { video ->
-                        val isSaved = video.id in myWatchLaterVideoIds
-                        if (!isSaved) {
-                            val title = video.title?.ifBlank { "Video" } ?: "Video"
-                            Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                        val preferenceManager = PreferenceManager(context)
+                        val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+                        if (isLoggedIn) {
+                            val isSaved = video.id in myWatchLaterVideoIds
+                            if (!isSaved) {
+                                val title = video.title?.ifBlank { "Video" } ?: "Video"
+                                Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                            }
+                            onIntent(HomeIntent.ToggleMyList(video))
+                        } else {
+                            Toast.makeText(context, "Login to add the video to your list", Toast.LENGTH_SHORT).show()
                         }
-                        onIntent(HomeIntent.ToggleMyList(video))
                     })
             }
         }
@@ -573,14 +598,20 @@ private fun CategoryContent(
                     },
 
                     onMyList = { video ->
-                        val isSaved = video.id in myWatchLaterVideoIds
-                        if (!isSaved) {
-                            val title = video.title?.ifBlank { "Video" } ?: "Video"
-                            Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                        val preferenceManager = PreferenceManager(context)
+                        val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+                        if (isLoggedIn) {
+                            val isSaved = video.id in myWatchLaterVideoIds
+                            if (!isSaved) {
+                                val title = video.title?.ifBlank { "Video" } ?: "Video"
+                                Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                            }
+                            onIntent(
+                                HomeIntent.ToggleMyList(video)
+                            )
+                        } else {
+                            Toast.makeText(context, "Login to add the video to your list", Toast.LENGTH_SHORT).show()
                         }
-                        onIntent(
-                            HomeIntent.ToggleMyList(video)
-                        )
                     })
             }
         }
@@ -994,14 +1025,20 @@ private fun HomeContent(
                     },
 
                     onMyList = { video ->
-                        val isSaved = video.id in myWatchLaterVideoIds
-                        if (!isSaved) {
-                            val title = video.title?.ifBlank { "Video" } ?: "Video"
-                            Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                        val preferenceManager = PreferenceManager(context)
+                        val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+                        if (isLoggedIn) {
+                            val isSaved = video.id in myWatchLaterVideoIds
+                            if (!isSaved) {
+                                val title = video.title?.ifBlank { "Video" } ?: "Video"
+                                Toast.makeText(context, "$title is added to the list", Toast.LENGTH_SHORT).show()
+                            }
+                            onIntent(
+                                HomeIntent.ToggleMyList(video)
+                            )
+                        } else {
+                            Toast.makeText(context, "Login to add the video to your list", Toast.LENGTH_SHORT).show()
                         }
-                        onIntent(
-                            HomeIntent.ToggleMyList(video)
-                        )
                     })
             }
         }

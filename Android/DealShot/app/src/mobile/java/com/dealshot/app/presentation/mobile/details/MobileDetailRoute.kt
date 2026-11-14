@@ -88,8 +88,15 @@ fun MobileDetailsRoute(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val preferenceManager = remember { com.dealshot.app.data.preferences.PreferenceManager(context) }
+    val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
     MobileDetailsScreen(
         video = state.video ?: video,
+        nextVideos = state.nextVideos,
+        onSelectNextVideo = { nextVideoDto ->
+            viewModel.onIntent(DetailsIntent.SelectNextVideo(nextVideoDto))
+        },
         onBackClick = {
             viewModel.onIntent(DetailsIntent.BackClicked)
         },
@@ -99,19 +106,50 @@ fun MobileDetailsRoute(
         isInMyWatchLater = state.isInMyWatchLater,
         isUpdatingMyWatchLater = state.isUpdatingMyWatchLater,
         onMyListClick = {
-            viewModel.onIntent(DetailsIntent.MyListClicked)
+
+            if (!isLoggedIn) {
+                android.widget.Toast.makeText(context, "Please log in to Add this video to your list.", android.widget.Toast.LENGTH_SHORT).show()
+                onLoginClick()
+            } else {
+                viewModel.onIntent(DetailsIntent.MyListClicked)
+            }
         },
         onLikeClick = {
-            viewModel.onIntent(DetailsIntent.LikeClicked)
+            if (!isLoggedIn) {
+                android.widget.Toast.makeText(context, "Please log in to like this video .", android.widget.Toast.LENGTH_SHORT).show()
+                onLoginClick()
+            } else {
+                viewModel.onIntent(DetailsIntent.LikeClicked)
+            }
         },
         onShareClick = {
-            viewModel.onIntent(DetailsIntent.ShareClicked)
+            if (!isLoggedIn) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Please log in to Report this video .",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                onLoginClick()
+            } else {
+                viewModel.onIntent(DetailsIntent.ShareClicked)
+            }
         },
         isLiked = state.isLiked,
         isUpdatingLike = state.isUpdatingLike,
         onLoginClick = onLoginClick,
         isPremiumUser = isPremiumUser,
         onSubscribeClick = onSubscribeClick,
-        onReportClick = onReportClick
+        onReportClick = {
+            if (!isLoggedIn) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Please log in to Report this video .",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                onLoginClick()
+            } else {
+                onReportClick()
+            }
+        }
     )
 }

@@ -1,6 +1,7 @@
 
 package com.dealshot.app.presentation.mobile.login
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.dealshot.app.R
 import androidx.compose.material3.Button
@@ -43,12 +45,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dealshot.app.presentation.shared.login.LoginIntent
@@ -67,7 +66,6 @@ import com.dealshot.app.ui.theme.GoldGradientCenter
 import com.dealshot.app.ui.theme.GoldGradientEnd
 import com.dealshot.app.ui.theme.GoldGradientStart
 import com.dealshot.app.ui.theme.GoldPrimary
-import com.dealshot.app.ui.theme.GoldTextLight
 import com.dealshot.app.ui.theme.IconBoxBg
 import com.dealshot.app.ui.theme.IconBoxBorder
 import com.dealshot.app.ui.theme.TextMuted
@@ -215,18 +213,11 @@ fun LoginScreen(
                         // ---------------------------------------------
                         // TITLE
                         // ---------------------------------------------
-                        Text(
-                            text = buildAnnotatedString {
-                                withStyle(SpanStyle(color = GoldTextLight)) {
-                                    append("Deal")
-                                }
-                                withStyle(SpanStyle(color = GoldPrimary)) {
-                                    append("Shot")
-                                }
-                            },
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.5.sp
+                        Image(
+                            painter = painterResource(id = R.drawable.deal_shot_white),
+                            contentDescription = "DealShot",
+                            modifier = Modifier.height(36.dp),
+                            contentScale = ContentScale.Fit
                         )
 
                         Spacer(modifier = Modifier.height(6.dp))

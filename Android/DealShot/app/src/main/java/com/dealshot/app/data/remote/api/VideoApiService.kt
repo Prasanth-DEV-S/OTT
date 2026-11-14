@@ -2,6 +2,9 @@ package com.dealshot.app.data.remote.api
 
 import com.dealshot.app.data.remote.dto.CategoryVideosResponseDto
 import com.dealshot.app.data.remote.dto.FeaturedVideoResponseDto
+import com.dealshot.app.data.remote.dto.HlsPlaybackRequestDto
+import com.dealshot.app.data.remote.dto.HlsPlaybackResponseDto
+import com.dealshot.app.data.remote.dto.HlsQualitiesResponseDto
 import com.dealshot.app.data.remote.dto.SendOtpRequestDto
 import com.dealshot.app.data.remote.dto.SendOtpResponseDto
 import com.dealshot.app.data.remote.dto.SharedVideoResolveResponseDto
@@ -12,6 +15,7 @@ import com.dealshot.app.data.video.VideoResponseDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -53,4 +57,17 @@ interface VideoApiService {
     suspend fun getVideosByCategory(
         @Path("category") category: String
     ): Response<CategoryVideosResponseDto>
+
+    @GET("videos/{videoId}/playback/hls/qualities")
+    suspend fun getHlsQualities(
+        @Path("videoId") videoId: String,
+        @Header("X-Profile-Id") profileId: String? = null
+    ): Response<HlsQualitiesResponseDto>
+
+    @POST("videos/{videoId}/playback/hls")
+    suspend fun requestHlsPlayback(
+        @Path("videoId") videoId: String,
+        @Body request: HlsPlaybackRequestDto,
+        @Header("X-Profile-Id") profileId: String? = null
+    ): Response<HlsPlaybackResponseDto>
 }

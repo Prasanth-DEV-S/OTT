@@ -19,8 +19,13 @@ interface UserApiService {
     @GET("users/me/profile")
     suspend fun getUserAccountProfile(): Response<UserAccountResponseDto>
 
-    @PATCH("users/me/profile")
+    @PUT("users/me/profile")
     suspend fun updateUserAccountProfile(
+        @Body request: UpdateUserAccountRequestDto
+    ): Response<UserAccountResponseDto>
+
+    @PATCH("users/me/profile")
+    suspend fun updateUserAccountProfilePatch(
         @Body request: UpdateUserAccountRequestDto
     ): Response<UserAccountResponseDto>
 

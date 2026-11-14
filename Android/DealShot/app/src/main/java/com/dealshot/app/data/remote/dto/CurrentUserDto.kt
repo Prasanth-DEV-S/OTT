@@ -51,6 +51,17 @@ data class CurrentSubscriptionDto(
     val status: String = "inactive"
 )
 
+fun CurrentSubscriptionDto.toSubscriptionState(planName: String? = null): SubscriptionState {
+    return SubscriptionState(
+        isActive = isActive,
+        planId = planId,
+        planName = planName,
+        startDate = startDate,
+        endDate = endDate,
+        status = status
+    )
+}
+
 fun CurrentUserDto.toAuthUser(planName: String? = null): AuthUser {
     return AuthUser(
         id = id,
@@ -61,13 +72,6 @@ fun CurrentUserDto.toAuthUser(planName: String? = null): AuthUser {
         profileImage = profileImage,
         activeProfileId = activeProfileId,
         avatarId = avatarId,
-        subscription = SubscriptionState(
-            isActive = subscription.isActive,
-            planId = subscription.planId,
-            planName = planName,
-            startDate = subscription.startDate,
-            endDate = subscription.endDate,
-            status = subscription.status
-        )
+        subscription = subscription.toSubscriptionState(planName)
     )
 }

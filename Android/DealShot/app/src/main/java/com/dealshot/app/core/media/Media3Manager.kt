@@ -6,7 +6,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 
 @UnstableApi
@@ -15,18 +14,7 @@ class Media3Manager(context: Context) {
 
     private val appContext = context.applicationContext
 
-    private val renderersFactory =
-        DefaultRenderersFactory(appContext).apply {
-            setExtensionRendererMode(
-                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
-            )
-        }
-
-    val player: ExoPlayer =
-        ExoPlayer.Builder(
-            appContext,
-            renderersFactory
-        ).build()
+    val player: ExoPlayer = ExoPlayerFactory.createExoPlayer(appContext)
 
     fun initialize(
         videoUrl: String,

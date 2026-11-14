@@ -7,6 +7,14 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -146,6 +154,13 @@ fun MobilePlayerScreen(
                     setCancelable(false)
                     window?.setBackgroundDrawableResource(android.R.color.transparent)
 
+                    val txtMessage = findViewById<android.widget.TextView>(R.id.dialog_message)
+                    if (!state.isLoggedIn) {
+                        txtMessage?.text = "Your 30-second preview has ended. Login and subscribe to watch the full video."
+                    } else {
+                        txtMessage?.text = "Your 30-second preview has ended. subscribe to watch the full video."
+                    }
+
                     findViewById<android.widget.TextView>(R.id.btn_not_now)?.setOnClickListener {
                         dismiss()
                         onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
@@ -154,7 +169,11 @@ fun MobilePlayerScreen(
                     findViewById<android.widget.TextView>(R.id.btn_ok)?.setOnClickListener {
                         dismiss()
                         onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
-                        onIntent(VideoPlayerIntent.SubscriptionClicked)
+                        if (!state.isLoggedIn) {
+                            onIntent(VideoPlayerIntent.LoginClicked)
+                        } else {
+                            onIntent(VideoPlayerIntent.SubscriptionClicked)
+                        }
                     }
                 }
                 dialog.show()
@@ -173,14 +192,19 @@ fun MobilePlayerScreen(
                 },
                 text = {
                     Text(
-                        "Your 30-second preview has ended. Choose a subscription plan to watch the full video.",
+                        if (!state.isLoggedIn) "Your 30-second preview has ended. Login and subscribe to watch the full video."
+                        else "Your 30-second preview has ended. subscribe to watch the full video.",
                         color = Color.DarkGray
                     )
                 },
                 confirmButton = {
                     TextButton(onClick = {
                         onIntent(VideoPlayerIntent.SubscriptionPopupDismissed)
-                        onIntent(VideoPlayerIntent.SubscriptionClicked)
+                        if (!state.isLoggedIn) {
+                            onIntent(VideoPlayerIntent.LoginClicked)
+                        } else {
+                            onIntent(VideoPlayerIntent.SubscriptionClicked)
+                        }
                     }) {
                         Text("OK", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold)
                     }
@@ -361,13 +385,44 @@ fun MobilePlayerScreen(
                                 )
                             }
 
-                            IconButton(onClick = { onIntent(VideoPlayerIntent.FullscreenClicked) }) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.arrow_up_left_and_arrow_down_right),
-                                    contentDescription = "Fullscreen",
-                                    tint = Color.White
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (state.isHlsStream) {
+                                    IconButton(onClick = { onIntent(VideoPlayerIntent.SettingsClicked) }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Quality Settings",
+                                            tint = if (state.showSettings) Color(0xFF2196F3) else Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+
+                                IconButton(onClick = { onIntent(VideoPlayerIntent.FullscreenClicked) }) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.arrow_up_left_and_arrow_down_right),
+                                        contentDescription = "Fullscreen",
+                                        tint = Color.White
+                                    )
+                                }
                             }
+                        }
+
+                        if (state.showSettings && state.isHlsStream) {
+                            HlsQualityMenu(
+                                qualities = state.availableHlsQualities,
+                                autoAvailable = state.autoAvailable,
+                                selectedQuality = state.selectedHlsQuality,
+                                isLoading = state.isLoadingQualities,
+                                error = state.qualitiesError,
+                                onSelectQuality = { quality ->
+                                    onIntent(VideoPlayerIntent.SelectHlsQuality(quality))
+                                    onIntent(VideoPlayerIntent.SettingsDismissed)
+                                },
+                                onClose = { onIntent(VideoPlayerIntent.SettingsDismissed) },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 56.dp, end = 16.dp)
+                            )
                         }
 
                         // Center Controls
@@ -576,12 +631,25 @@ fun MobilePlayerScreen(
                                 )
                             }
 
-                            IconButton(onClick = { onIntent(VideoPlayerIntent.FullscreenClicked) }) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.arrow_up_left_and_arrow_down_right),
-                                    contentDescription = "Fullscreen",
-                                    tint = Color.White
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (state.isHlsStream) {
+                                    IconButton(onClick = { onIntent(VideoPlayerIntent.SettingsClicked) }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Quality Settings",
+                                            tint = if (state.showSettings) Color(0xFF2196F3) else Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+
+                                IconButton(onClick = { onIntent(VideoPlayerIntent.FullscreenClicked) }) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.arrow_up_left_and_arrow_down_right),
+                                        contentDescription = "Fullscreen",
+                                        tint = Color.White
+                                    )
+                                }
                             }
                         }
 
@@ -926,6 +994,148 @@ fun MobilePlayerScreen(
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HlsQualityMenu(
+    qualities: List<com.dealshot.app.data.remote.dto.HlsQualityDto>,
+    autoAvailable: Boolean,
+    selectedQuality: String,
+    isLoading: Boolean,
+    error: String?,
+    onSelectQuality: (String) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .width(210.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xF2000000))
+            .border(1.dp, Color(0xFF383025), RoundedCornerShape(16.dp))
+            .pointerInput(Unit) { detectTapGestures { } }
+            .verticalScroll(rememberScrollState())
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clickable(onClick = onClose)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Video Quality",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color.White.copy(alpha = 0.2f))
+        )
+
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = Color(0xFFE8C575),
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp
+                )
+            }
+        } else if (error != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = error,
+                    color = Color(0xFFFF5252),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            if (autoAvailable) {
+                val isSelected = selectedQuality.equals("auto", ignoreCase = true)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .clickable {
+                            onSelectQuality("auto")
+                        }
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Auto",
+                        color = if (isSelected) Color(0xFFE8C575) else Color.White,
+                        fontSize = 13.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = Color(0xFFE8C575),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+
+            qualities.forEach { q ->
+                val isSelected = selectedQuality.equals(q.quality, ignoreCase = true) ||
+                        selectedQuality.equals(q.label, ignoreCase = true)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .clickable {
+                            onSelectQuality(q.quality)
+                        }
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = q.label.ifBlank { q.quality },
+                        color = if (isSelected) Color(0xFFE8C575) else Color.White,
+                        fontSize = 13.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = Color(0xFFE8C575),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
         }
     }

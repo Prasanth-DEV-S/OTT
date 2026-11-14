@@ -15,21 +15,22 @@ class LikedVideosRepositoryImpl(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    override suspend fun getLikedVideos(): List<VideoDto> =
-        api.getLikedVideos().let { response ->
+    override suspend fun getLikedVideos(): List<VideoDto> {
+        return try {
+            val response = api.getLikedVideos()
             if (!response.isSuccessful) {
+                if (response.code() == 401) {
+                    return emptyList()
+                }
                 throw HttpException(response)
             }
-
-            val body = response.body()
-                ?: error("Unable to load liked videos.")
-
-            if (!body.success) {
-                error("Unable to load liked videos.")
-            }
-
+            val body = response.body() ?: return emptyList()
+            if (!body.success) return emptyList()
             body.videos
+        } catch (_: Exception) {
+            emptyList()
         }
+    }
 
     override suspend fun likeVideo(
         videoId: String
@@ -90,20 +91,20 @@ class LikedVideosRepositoryImpl(
     override suspend fun getVideoLikeStatus(
         videoId: String
     ): Boolean {
-        val response = api.getVideoLikeStatus(videoId)
-
-        if (!response.isSuccessful) {
-            throw HttpException(response)
+        return try {
+            val response = api.getVideoLikeStatus(videoId)
+            if (!response.isSuccessful) {
+                if (response.code() == 401) {
+                    return false
+                }
+                throw HttpException(response)
+            }
+            val body = response.body() ?: return false
+            if (!body.success) return false
+            body.data.myLikeStatus
+        } catch (_: Exception) {
+            false
         }
-
-        val body = response.body()
-            ?: error("Unable to load video like status.")
-
-        if (!body.success) {
-            error("Unable to load video like status.")
-        }
-
-        return body.data.myLikeStatus
     }
 
     private fun parseErrorMessage(response: retrofit2.Response<*>): String? {

@@ -1,7 +1,7 @@
 package com.dealshot.app.data.subscription
 
-import com.dealshot.app.data.remote.dto.CurrentUserDto
 import com.dealshot.app.data.remote.dto.CurrentUserResponseDto
+import com.dealshot.app.data.remote.dto.SingleSubscriptionPlanResponseDto
 import com.dealshot.app.data.remote.dto.toAuthUser
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -51,6 +51,59 @@ class SubscriptionSyncTest {
         )
 
         assertFalse(hasPremiumAccess(state))
+    }
+
+    @Test
+    fun parseSingleSubscriptionPlanResponse() {
+        val sampleJson = """
+            {
+              "success": true,
+              "message": "Subscription plan fetched successfully",
+              "data": {
+                "_id": "6acca54a964aec80e86e0d4e",
+                "name": "Basic",
+                "code": "BASIC",
+                "description": "Enjoy entertainment every month",
+                "price": 199,
+                "currency": "INR",
+                "durationInDays": 30,
+                "hdAvailable": false,
+                "hdr4kAvailable": false,
+                "watchOnLaptopAndTV": true,
+                "watchOnMobileAndTablet": true,
+                "simultaneousStreams": 1,
+                "isActive": true,
+                "sortOrder": 1
+              }
+            }
+        """.trimIndent()
+
+        val response = json.decodeFromString<SingleSubscriptionPlanResponseDto>(sampleJson)
+
+        assertTrue(response.success)
+        assertEquals("Subscription plan fetched successfully", response.message)
+        assertNotNull(response.data)
+
+        val planDto = response.data!!
+        assertEquals("6acca54a964aec80e86e0d4e", planDto.id)
+        assertEquals("Basic", planDto.name)
+        assertEquals("BASIC", planDto.code)
+        assertEquals("Enjoy entertainment every month", planDto.description)
+        assertEquals(199, planDto.price)
+        assertEquals("INR", planDto.currency)
+        assertEquals(30, planDto.durationInDays)
+        assertFalse(planDto.hdAvailable)
+        assertFalse(planDto.hdr4kAvailable)
+        assertTrue(planDto.watchOnLaptopAndTV)
+        assertTrue(planDto.watchOnMobileAndTablet)
+        assertEquals(1, planDto.simultaneousStreams)
+        assertTrue(planDto.isActive)
+
+        val domainPlan = planDto.toDomain()
+        assertEquals("Basic", domainPlan.name)
+        assertEquals(30, domainPlan.durationDays)
+        assertTrue(domainPlan.watchOnLaptopAndTV)
+        assertTrue(domainPlan.watchOnMobileAndTablet)
     }
 
     @Test

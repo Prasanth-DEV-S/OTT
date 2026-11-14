@@ -1,12 +1,13 @@
 package com.dealshot.app.presentation.shared.details
 
+import com.dealshot.app.data.remote.dto.VideoDto
 import com.dealshot.app.data.remote.dto.VideoDetailsDto
 import com.dealshot.app.data.video.Video
-
 
 data class DetailsState(
     val video: Video? = null,
     val videoDetails: VideoDetailsDto? = null,
+    val nextVideos: List<VideoDto> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val isLiked: Boolean = false,
@@ -18,6 +19,8 @@ data class DetailsState(
 sealed interface DetailsIntent {
 
     data class Initialize(val video: Video) : DetailsIntent
+
+    data class SelectNextVideo(val videoDto: VideoDto) : DetailsIntent
 
     data object BackClicked : DetailsIntent
 

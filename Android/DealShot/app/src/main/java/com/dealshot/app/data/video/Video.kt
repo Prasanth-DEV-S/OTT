@@ -43,4 +43,12 @@ data class Video(
         featured = featured,
         promoVideoUrl = promoVideoUrl
     )
+
+    fun isHlsCategory(): Boolean {
+        return category.trim().equals("International", ignoreCase = true)
+    }
+}
+
+fun isHlsCategory(category: String?): Boolean {
+    return category?.trim()?.equals("International", ignoreCase = true) == true
 }

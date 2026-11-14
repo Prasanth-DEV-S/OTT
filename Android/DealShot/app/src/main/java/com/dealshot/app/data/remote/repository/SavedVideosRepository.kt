@@ -22,15 +22,22 @@ class SavedVideosRepositoryImpl(
 ) : SavedVideosRepository {
 
     override suspend fun getVideos(collection: SavedVideoCollection): List<VideoDto> {
-        val response = api.getSavedVideos(collection.path)
+        val response = try {
+            api.getSavedVideos(collection.path)
+        } catch (_: Exception) {
+            return emptyList()
+        }
 
         if (!response.isSuccessful) {
+            if (response.code() == 401) {
+                return emptyList()
+            }
             throw HttpException(response)
         }
 
         val body = response.body()
         if (body == null || !body.success) {
-            throw IllegalStateException("Unable to load videos.")
+            return emptyList()
         }
 
         return body.data.map { it.videoId }

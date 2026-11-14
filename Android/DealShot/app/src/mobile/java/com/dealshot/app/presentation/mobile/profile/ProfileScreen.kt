@@ -188,10 +188,13 @@ fun ProfileScreen(
 
                 // Main Cohesive Card Container
                 ProfilePopupCard(
-                    userName = activeProfile?.name
-                        ?: state.username.ifBlank { state.selectedProfile?.name.orEmpty() },
+                    userName = if (activeProfile?.isPrimary == true || activeProfile == null) {
+                        state.username.ifBlank { activeProfile?.name.orEmpty() }
+                    } else {
+                        activeProfile.name
+                    },
                     mobileNumber = state.phoneNumber,
-                    profileImageUrl = activeProfile?.avatarUrl ?: state.profileImageUrl ?: state.avatar,
+                    profileImageUrl = state.profileImageUrl?.ifBlank { null } ?: state.avatar.ifBlank { null } ?: activeProfile?.avatarUrl,
                     onLogout = { onIntent(ProfileIntent.LogoutClicked) },
                     onLogin = onLogin,
                     email = email.ifBlank { state.email },

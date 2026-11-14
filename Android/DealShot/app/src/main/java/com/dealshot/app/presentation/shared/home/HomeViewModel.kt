@@ -174,6 +174,7 @@ class HomeViewModel(
             add("Motivational")
             add("Inspiration")
             add("Academic")
+            add("Series")
         }.distinct()
     }
 
@@ -209,20 +210,30 @@ class HomeViewModel(
                 val featuredResult = videoRepository.getFeaturedVideo()
                 val featuredVideo = featuredResult.getOrNull()
 
-                // Fetch category videos for Banner from GET /videos/category/Banner
+                // Fetch category videos for Banner and images
                 val bannerResult = videoRepository.getVideosByCategory("Banner")
                 val bannerCategoryVideos = bannerResult.getOrDefault(emptyList())
 
-                val bannerVideos = if (bannerCategoryVideos.isNotEmpty()) {
+
+
+
+
+                val imagesResult = videoRepository.getVideosByCategory("images")
+                val imagesCategoryVideos = imagesResult.getOrDefault(emptyList())
+
+                val localBannerVideos = videos.filter { video ->
+                    val cat = video.category?.trim().orEmpty()
+                    cat.equals("Banner", ignoreCase = true) || cat.equals("images", ignoreCase = true)
+                }
+
+                val bannerVideos = (bannerCategoryVideos + imagesCategoryVideos + localBannerVideos).let { list ->
                     if (featuredVideo != null) {
-                        (listOf(featuredVideo) + bannerCategoryVideos).distinctBy { it.id.ifBlank { it.altId.orEmpty() } }
+                        (listOf(featuredVideo) + list).distinctBy { it.id.ifBlank { it.altId.orEmpty() } }
                     } else {
-                        bannerCategoryVideos
+                        list.distinctBy { it.id.ifBlank { it.altId.orEmpty() } }
                     }
-                } else if (featuredVideo != null) {
-                    listOf(featuredVideo)
-                } else {
-                    videos.filter { it.category.equals("Banner", ignoreCase = true) }
+                }.ifEmpty {
+                    if (featuredVideo != null) listOf(featuredVideo) else emptyList()
                 }
 
                 val latestReleases = videos.drop(1).take(6)

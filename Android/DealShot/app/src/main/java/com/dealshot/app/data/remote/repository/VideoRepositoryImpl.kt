@@ -2,6 +2,9 @@ package com.dealshot.app.data.remote.repository
 
 import com.dealshot.app.data.remote.api.VideoApiService
 import com.dealshot.app.data.remote.api.VideoDetailsApiService
+import com.dealshot.app.data.remote.dto.HlsPlaybackDataDto
+import com.dealshot.app.data.remote.dto.HlsPlaybackRequestDto
+import com.dealshot.app.data.remote.dto.HlsQualitiesDataDto
 import com.dealshot.app.data.remote.dto.SharedVideoResolveResponseDto
 import com.dealshot.app.data.remote.dto.VideoCategoryDto
 import com.dealshot.app.data.remote.dto.VideoDetailsDto
@@ -128,6 +131,64 @@ class VideoRepositoryImpl(
             } else {
                 val errorMsg = parseErrorMessage(response)
                     ?: "Failed to resolve shared video (${response.code()})"
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getHlsQualities(videoId: String, profileId: String?): Result<HlsQualitiesDataDto> {
+        val cleanId = videoId.trim()
+        if (cleanId.isBlank()) return Result.failure(Exception("Invalid video ID"))
+
+        return try {
+            val response = api.getHlsQualities(cleanId, profileId?.trim()?.ifBlank { null })
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null && body.success && body.data != null) {
+                    Result.success(body.data)
+                } else {
+                    val msg = body?.message?.ifBlank { null } ?: "Failed to fetch HLS qualities"
+                    Result.failure(Exception(msg))
+                }
+            } else {
+                val errorMsg = parseErrorMessage(response)
+                    ?: "Failed to fetch HLS qualities (${response.code()})"
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun requestHlsPlayback(
+        videoId: String,
+        mode: String,
+        quality: String?,
+        profileId: String?
+    ): Result<HlsPlaybackDataDto> {
+        val cleanId = videoId.trim()
+        if (cleanId.isBlank()) return Result.failure(Exception("Invalid video ID"))
+
+        val request = HlsPlaybackRequestDto(
+            mode = mode.lowercase(),
+            quality = quality?.trim()?.ifBlank { null }
+        )
+
+        return try {
+            val response = api.requestHlsPlayback(cleanId, request, profileId?.trim()?.ifBlank { null })
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null && body.success && body.data != null) {
+                    Result.success(body.data)
+                } else {
+                    val msg = body?.message?.ifBlank { null } ?: "Failed to request HLS playback URL"
+                    Result.failure(Exception(msg))
+                }
+            } else {
+                val errorMsg = parseErrorMessage(response)
+                    ?: "Failed to request HLS playback (${response.code()})"
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {

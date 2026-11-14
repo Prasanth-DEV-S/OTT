@@ -36,7 +36,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -48,8 +47,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -66,9 +63,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,7 +76,6 @@ import coil.compose.AsyncImage
 import com.dealshot.app.data.remote.repository.report.ReportReason
 import com.dealshot.app.data.remote.repository.report.ReportRepository
 import com.dealshot.app.presentation.shared.report.ReportUiState
-import com.dealshot.app.presentation.shared.report.ReportValidator
 import com.dealshot.app.presentation.shared.report.ReportViewModel
 import com.dealshot.app.ui.AnimatedGoldenBackground
 import com.dealshot.app.ui.theme.CardBgDark
@@ -117,7 +111,7 @@ fun ReportRoute(
         videoTitle = videoTitle,
         thumbnailUrl = thumbnailUrl,
         onReasonSelected = viewModel::onReasonSelected,
-        onCommentChange = viewModel::onCommentChanged,
+        onRetryReasons = viewModel::loadMasterData,
         onSubmit = viewModel::submit,
         onBack = onBack
     )
@@ -129,7 +123,7 @@ fun ReportScreen(
     videoTitle: String,
     thumbnailUrl: String,
     onReasonSelected: (ReportReason) -> Unit,
-    onCommentChange: (String) -> Unit,
+    onRetryReasons: () -> Unit,
     onSubmit: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -193,51 +187,58 @@ fun ReportScreen(
             SectionLabel("WHY ARE YOU REPORTING THIS?")
             Spacer(modifier = Modifier.height(12.dp))
 
-            Column(
-                modifier = Modifier.selectableGroup(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ReportReason.values().forEach { reason ->
-                    ReasonCard(
-                        reason = reason,
-                        selected = state.selectedReason == reason,
-                        enabled = !state.isSubmitting,
-                        onClick = { onReasonSelected(reason) }
+            if (state.isLoadingReasons) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = GoldPrimary,
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 2.5.dp
                     )
+                }
+            } else if (state.reasonsError != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF381F19))
+                        .border(1.dp, ErrorRed.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                        .padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = state.reasonsError,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = onRetryReasons) {
+                        Text(text = "Retry Loading Reasons", color = GoldPrimary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.selectableGroup(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    state.reasons.forEach { reason ->
+                        ReasonCard(
+                            reason = reason,
+                            selected = state.selectedReason == reason,
+                            enabled = !state.isSubmitting,
+                            onClick = { onReasonSelected(reason) }
+                        )
+                    }
                 }
             }
             ValidationMessage(message = state.reasonError)
 
-            Spacer(modifier = Modifier.height(22.dp))
-
-            // ---------- Comment ----------
-            val commentRequired = state.selectedReason?.commentRequired == true
-            SectionLabel(
-                if (commentRequired) "ADDITIONAL COMMENT (REQUIRED)"
-                else "ADDITIONAL COMMENT (OPTIONAL)"
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            CommentField(
-                comment = state.comment,
-                onCommentChange = onCommentChange,
-                enabled = !state.isSubmitting,
-                isError = state.commentError != null,
-                placeholder = if (commentRequired) "Please describe the issue…"
-                else "Add more details (optional)…"
-            )
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Box(modifier = Modifier.weight(1f)) { ValidationMessage(message = state.commentError) }
-                Text(
-                    text = "${state.comment.length}/${ReportValidator.MAX_COMMENT_LENGTH}",
-                    color = if (state.comment.length >= ReportValidator.MAX_COMMENT_LENGTH) ErrorRed
-                    else TextMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 6.dp, end = 4.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // ---------- Submit error + Retry ----------
             SubmitErrorBanner(
@@ -247,13 +248,17 @@ fun ReportScreen(
             )
 
             // ---------- Submit ----------
-            SubmitButton(isSubmitting = state.isSubmitting, onClick = onSubmit)
+            SubmitButton(
+                isSubmitting = state.isSubmitting,
+                enabled = !state.isLoadingReasons && state.reasons.isNotEmpty() && !state.isSubmitting,
+                onClick = onSubmit
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
         }
 
         if (state.isSuccess) {
-            SuccessDialog(isSimulated = state.isSimulatedSuccess, onDone = onBack)
+            SuccessDialog(message = state.successMessage, onDone = onBack)
         }
     }
 }
@@ -398,48 +403,6 @@ private fun RadioIndicator(selected: Boolean) {
     }
 }
 
-@Composable
-private fun CommentField(
-    comment: String,
-    onCommentChange: (String) -> Unit,
-    enabled: Boolean,
-    isError: Boolean,
-    placeholder: String
-) {
-    val container = CardBgDark.copy(alpha = 0.95f)
-    OutlinedTextField(
-        value = comment,
-        onValueChange = onCommentChange,
-        enabled = enabled,
-        isError = isError,
-        modifier = Modifier.fillMaxWidth(),
-        textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-        placeholder = {
-            Text(text = placeholder, color = TextMuted.copy(alpha = 0.8f), fontSize = 14.sp)
-        },
-        minLines = 4,
-        maxLines = 8,
-        shape = RoundedCornerShape(14.dp),
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            disabledTextColor = Color.White.copy(alpha = 0.6f),
-            errorTextColor = Color.White,
-            focusedContainerColor = container,
-            unfocusedContainerColor = container,
-            disabledContainerColor = container,
-            errorContainerColor = container,
-            cursorColor = GoldPrimary,
-            errorCursorColor = GoldPrimary,
-            focusedBorderColor = GoldPrimary,
-            unfocusedBorderColor = CardBorder,
-            disabledBorderColor = CardBorder,
-            errorBorderColor = ErrorRed
-        )
-    )
-}
-
 /** Fades/expands in when [message] is non-null; keeps the last text while animating out. */
 @Composable
 private fun ValidationMessage(message: String?) {
@@ -515,7 +478,11 @@ private fun SubmitErrorBanner(
 }
 
 @Composable
-private fun SubmitButton(isSubmitting: Boolean, onClick: () -> Unit) {
+private fun SubmitButton(
+    isSubmitting: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -526,7 +493,7 @@ private fun SubmitButton(isSubmitting: Boolean, onClick: () -> Unit) {
 
     Button(
         onClick = onClick,
-        enabled = !isSubmitting,
+        enabled = enabled,
         interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
@@ -559,7 +526,7 @@ private fun SubmitButton(isSubmitting: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SuccessDialog(isSimulated: Boolean, onDone: () -> Unit) {
+private fun SuccessDialog(message: String, onDone: () -> Unit) {
     Dialog(
         onDismissRequest = {},
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
@@ -604,7 +571,7 @@ private fun SuccessDialog(isSimulated: Boolean, onDone: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = if (isSimulated) "Test mode" else "Report submitted",
+                text = "Report Submitted",
                 color = Color.White,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold
@@ -613,11 +580,7 @@ private fun SuccessDialog(isSimulated: Boolean, onDone: () -> Unit) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = if (isSimulated) {
-                    "The report flow worked, but nothing was sent because the reporting service isn't connected yet."
-                } else {
-                    "Thank you. Your report has been submitted successfully."
-                },
+                text = message.ifBlank { "Thank you. Your report has been submitted successfully." },
                 color = TextMuted,
                 fontSize = 13.5.sp,
                 textAlign = TextAlign.Center

@@ -347,7 +347,7 @@ private fun TvSplashCollageColumn(
                         .clip(RoundedCornerShape(10.dp))
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.ic_launcherdealshot_splash_safe),
+                        painter = painterResource(id = R.drawable.splash_screen),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

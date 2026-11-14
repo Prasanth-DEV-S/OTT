@@ -9,6 +9,7 @@ sealed interface VideoPlayerIntent {
         val videoUrl: String,
         val isPremiumUser: Boolean,
         val position: Long,
+        val category: String = "",
         val error: String? = null,
         val message : String? = null
     ) : VideoPlayerIntent
@@ -16,6 +17,8 @@ sealed interface VideoPlayerIntent {
     data object BackClicked : VideoPlayerIntent
 
     data object SubscriptionClicked : VideoPlayerIntent
+
+    data object LoginClicked : VideoPlayerIntent
 
     data object SettingsClicked : VideoPlayerIntent
 
@@ -33,6 +36,13 @@ sealed interface VideoPlayerIntent {
 
     data object SaveProgressRequested : VideoPlayerIntent
 
+    data object LoadAvailableQualities : VideoPlayerIntent
+
+    data class SelectHlsQuality(
+        val quality: String,
+        val mode: String = if (quality.lowercase() == "auto") "auto" else "manual"
+    ) : VideoPlayerIntent
+
     data class PlaybackStateChanged(
         val isPlaying: Boolean
     ) : VideoPlayerIntent
@@ -40,6 +50,7 @@ sealed interface VideoPlayerIntent {
     data class PlaybackError(
         val error: Throwable
     ) : VideoPlayerIntent
+
     data class PlaybackProgressChanged(
         val currentPosition: Long,
         val duration: Long

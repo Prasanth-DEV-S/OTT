@@ -347,6 +347,9 @@ private fun TvHomeContent(
             heroVideos = state.bannerVideos
             val categoryRows = playable
                 .map { it.category!!.trim() }
+                .filter { cat ->
+                    !cat.equals("Banner", ignoreCase = true) && !cat.equals("images", ignoreCase = true)
+                }
                 .distinct()
                 .sorted()
                 .map { cat ->

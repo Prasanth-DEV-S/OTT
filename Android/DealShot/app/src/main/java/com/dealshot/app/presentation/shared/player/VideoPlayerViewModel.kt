@@ -1,26 +1,39 @@
 package com.dealshot.app.presentation.shared.player
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dealshot.app.core.error.AppErrorHandler
-import com.dealshot.app.data.remote.repository.WatchProgressRepository
 import com.dealshot.app.data.preferences.GuestPreviewRepository
+import com.dealshot.app.data.preferences.UserPreferences
+import com.dealshot.app.data.remote.ApiClient
+import com.dealshot.app.data.remote.dto.toAbsolutePlaybackUrl
+import com.dealshot.app.data.remote.repository.VideoRepository
+import com.dealshot.app.data.remote.repository.VideoRepositoryImpl
+import com.dealshot.app.data.remote.repository.WatchProgressRepository
+import com.dealshot.app.data.video.isHlsCategory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class VideoPlayerViewModel(
     private val watchProgressRepository: WatchProgressRepository,
-    private val guestPreviewRepository: com.dealshot.app.data.preferences.GuestPreviewRepository,
-    private val userPreferences: com.dealshot.app.data.preferences.UserPreferences? = null
+    private val guestPreviewRepository: GuestPreviewRepository,
+    private val userPreferences: UserPreferences? = null,
+    videoRepository: VideoRepository? = null
 ) : ViewModel() {
+
+    private val videoRepo: VideoRepository =
+        videoRepository ?: VideoRepositoryImpl(ApiClient.videoApi)
+
     private val progressSaveMutex = Mutex()
     private var progressSaveJob: Job? = null
     private var previewJob: Job? = null
@@ -61,6 +74,7 @@ class VideoPlayerViewModel(
                 val isExhausted = (isRestricted && intent.position >= GuestPreviewRepository.GUEST_PREVIEW_LIMIT_MS) ||
                         (videoId.isNotBlank() && guestPreviewRepository.isPreviewExhausted(videoId))
 
+                val isHls = isHlsCategory(intent.category)
                 currentPreviewTimeMs = 0L
 
                 _uiState.update {
@@ -69,6 +83,8 @@ class VideoPlayerViewModel(
                         title = intent.title,
                         description = intent.description,
                         videoUrl = intent.videoUrl,
+                        category = intent.category,
+                        isHlsStream = isHls,
                         isPremiumUser = intent.isPremiumUser,
                         isLoggedIn = !guestPreviewRepository.isGuest(),
                         isPreviewExhausted = isExhausted,
@@ -80,6 +96,11 @@ class VideoPlayerViewModel(
                         error = null
                     )
                 }
+
+                if (isHls) {
+                    loadAvailableQualities(intent.videoId)
+                }
+
                 loadWatchProgress(intent.videoId, intent.position, isReturningFromLogin)
             }
 
@@ -103,6 +124,12 @@ class VideoPlayerViewModel(
                 )
             }
 
+            VideoPlayerIntent.LoginClicked -> {
+                sendEffect(
+                    VideoPlayerEffect.OpenLogin
+                )
+            }
+
             VideoPlayerIntent.SaveProgressRequested -> {
                 saveWatchProgress()
             }
@@ -113,6 +140,9 @@ class VideoPlayerViewModel(
                         showSettings = true
                     )
                 }
+                if (_uiState.value.isHlsStream && _uiState.value.availableHlsQualities.isEmpty()) {
+                    loadAvailableQualities(_uiState.value.videoId)
+                }
             }
 
             VideoPlayerIntent.SettingsDismissed -> {
@@ -121,6 +151,14 @@ class VideoPlayerViewModel(
                         showSettings = false
                     )
                 }
+            }
+
+            VideoPlayerIntent.LoadAvailableQualities -> {
+                loadAvailableQualities(_uiState.value.videoId)
+            }
+
+            is VideoPlayerIntent.SelectHlsQuality -> {
+                selectHlsQuality(intent.quality)
             }
 
             VideoPlayerIntent.FullscreenClicked -> {
@@ -248,6 +286,94 @@ class VideoPlayerViewModel(
                     guestPreviewRepository.clearPendingResumeState()
                 }
             }
+        }
+    }
+
+    fun loadAvailableQualities(videoId: String? = null) {
+        val targetVideoId = videoId ?: _uiState.value.videoId
+        if (targetVideoId.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingQualities = true, qualitiesError = null) }
+            val activeProfileId = try { userPreferences?.activeProfileId?.first()?.trim() } catch (_: Exception) { null }
+            val result = videoRepo.getHlsQualities(targetVideoId, activeProfileId)
+
+            result.fold(
+                onSuccess = { data ->
+                    _uiState.update { current ->
+                        current.copy(
+                            availableHlsQualities = data.qualities,
+                            autoAvailable = data.autoAvailable,
+                            isLoadingQualities = false,
+                            qualitiesError = null
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    runCatching { Log.w("VideoPlayerViewModel", "Failed to fetch HLS qualities for $targetVideoId", error) }
+                    _uiState.update { current ->
+                        current.copy(
+                            isLoadingQualities = false,
+                            qualitiesError = error.message
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun selectHlsQuality(quality: String) {
+        val currentState = _uiState.value
+        val videoId = currentState.videoId
+        if (videoId.isBlank() || currentState.isChangingQuality) return
+
+        val capturedPosition = currentState.currentPlaybackPosition
+        val capturedPlaying = currentState.isPlaying
+        val mode = if (quality.lowercase() == "auto") "auto" else "manual"
+        val targetQuality = if (mode == "manual") quality else null
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isChangingQuality = true, qualitiesError = null) }
+            val activeProfileId = try { userPreferences?.activeProfileId?.first()?.trim() } catch (_: Exception) { null }
+
+            val result = videoRepo.requestHlsPlayback(
+                videoId = videoId,
+                mode = mode,
+                quality = targetQuality,
+                profileId = activeProfileId
+            )
+
+            result.fold(
+                onSuccess = { playbackData ->
+                    val fullPlaybackUrl = playbackData.playbackUrl.toAbsolutePlaybackUrl()
+                    _uiState.update { current ->
+                        current.copy(
+                            selectedHlsQuality = quality,
+                            activePlaybackUrl = fullPlaybackUrl,
+                            isChangingQuality = false,
+                            qualitiesError = null
+                        )
+                    }
+                    if (fullPlaybackUrl.isNotBlank()) {
+                        sendEffect(
+                            VideoPlayerEffect.UpdatePlaybackUrl(
+                                playbackUrl = fullPlaybackUrl,
+                                positionMs = capturedPosition,
+                                shouldPlay = capturedPlaying
+                            )
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    runCatching { Log.e("VideoPlayerViewModel", "Failed to select HLS playback quality $quality for $videoId", error) }
+                    _uiState.update { current ->
+                        current.copy(
+                            isChangingQuality = false,
+                            qualitiesError = error.message
+                        )
+                    }
+                }
+            )
         }
     }
 

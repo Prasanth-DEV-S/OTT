@@ -4,10 +4,12 @@ import android.app.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dealshot.app.data.preferences.UserPreferences
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -35,10 +37,19 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -135,6 +146,8 @@ import kotlin.math.roundToInt
 
 // ---- NEW imports for video quality settings ----
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.media3.common.C
@@ -142,6 +155,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.compose.material.icons.filled.Flag
+import com.dealshot.app.presentation.shared.details.DetailsIntent
 
 // How much of the player height a full 0%..100% swipe needs (1.5 = about 2/3 of the height)
 private const val GESTURE_SENSITIVITY = 1.5f
@@ -169,6 +183,8 @@ private data class QualityOption(
 @Composable
 fun MobileDetailsScreen(
     video: Video,
+    nextVideos: List<com.dealshot.app.data.remote.dto.VideoDto> = emptyList(),
+    onSelectNextVideo: (com.dealshot.app.data.remote.dto.VideoDto) -> Unit = {},
     onBackClick: () -> Unit,
     onPlayVideo: () -> Unit,
     isLiked: Boolean,
@@ -205,7 +221,7 @@ fun MobileDetailsScreen(
             ?: WindowManagerBrightnessNone
     }
 
-    val player = remember { ExoPlayer.Builder(context).build() }
+    val player = remember { com.dealshot.app.core.media.ExoPlayerFactory.createExoPlayer(context) }
     var isPlayerVisible by remember { mutableStateOf(false) }
     var isPromoPlaying by remember { mutableStateOf(false) }
     var isFullscreen by remember { mutableStateOf(false) }
@@ -216,6 +232,43 @@ fun MobileDetailsScreen(
     var duration by remember { mutableLongStateOf(0L) }
     var playing by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
+
+    var showNextOverlay by remember { mutableStateOf(false) }
+    var countdownSeconds by remember { mutableIntStateOf(5) }
+
+    // Detect when main video ends (Player.STATE_ENDED) to trigger 5-second autoplay countdown
+    // Note: NEVER trigger countdown when promo video ends (isPromoPlaying = true or !isPlayerVisible)
+    DisposableEffect(player, nextVideos, isPlayerVisible, isPromoPlaying) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    if (isPlayerVisible && !isPromoPlaying && nextVideos.isNotEmpty()) {
+                        showNextOverlay = true
+                    }
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+        }
+    }
+
+    // 5-second countdown timer ticker
+    LaunchedEffect(showNextOverlay) {
+        if (showNextOverlay) {
+            countdownSeconds = 5
+            for (sec in 5 downTo 1) {
+                countdownSeconds = sec
+                delay(1000L)
+            }
+            val nextVideo = nextVideos.firstOrNull()
+            if (nextVideo != null) {
+                showNextOverlay = false
+                onSelectNextVideo(nextVideo)
+            }
+        }
+    }
 
     if (showShareDialog) {
         val shareUrl = com.dealshot.app.util.VideoShareHelper.generateShareUrl(video.id.ifEmpty { video.apiId })
@@ -298,12 +351,15 @@ fun MobileDetailsScreen(
                 hasShownSubscriptionPopup = true
                 player.pause()
 
+                val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+
                 activity?.let { act ->
-                    showSubscriptionDialog(
+                    showSubscriptionPreviewDialog(
                         activity = act as ComponentActivity,
+                        isLoggedIn = isLoggedIn,
+                        onLogin = { onLoginClick() },
                         onSubscribe = { onSubscribeClick() },
                         onNotNow = {
-//                                player.play()
                             onBackClick()
                         }
                     )
@@ -335,20 +391,45 @@ fun MobileDetailsScreen(
         }
     }
 
+    LaunchedEffect(video.id, video.apiId, video.url) {
+        showNextOverlay = false
+        val actualVideoUrl = video.url.trim()
+        if (actualVideoUrl.isNotBlank() && isPlayerVisible) {
+            startPlayback()
+        }
+    }
+
     // Fullscreen: show only the player
     if (isFullscreen) {
-        InlinePlayer(
-            player = player,
-            isFullscreen = true,
-            isPlaying = playing,
-            position = position,
-            duration = duration,
-            onFullscreenClick = { isFullscreen = false },
-            modifier = Modifier.fillMaxSize(),
-            showControls = true,
-            onBackClick = onBackClick,
-            onReportClick = reportAction
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            InlinePlayer(
+                player = player,
+                isFullscreen = true,
+                isPlaying = playing,
+                position = position,
+                duration = duration,
+                onFullscreenClick = { isFullscreen = false },
+                modifier = Modifier.fillMaxSize(),
+                showControls = true,
+                onBackClick = onBackClick,
+                onReportClick = reportAction
+            )
+
+            if (showNextOverlay && nextVideos.isNotEmpty()) {
+                val nextVideo = nextVideos.first()
+                DetailNextVideoOverlay(
+                    nextVideo = nextVideo,
+                    countdownSeconds = countdownSeconds,
+                    onPlayNow = {
+                        showNextOverlay = false
+                        onSelectNextVideo(nextVideo)
+                    },
+                    onCancel = {
+                        showNextOverlay = false
+                    }
+                )
+            }
+        }
         return
     }
     Column(
@@ -378,12 +459,28 @@ fun MobileDetailsScreen(
                     position = position,
                     duration = duration,
                     onFullscreenClick = { isFullscreen = true },
-                    showControls = isPlayerVisible,
+                    showControls = isPlayerVisible && !isPromoPlaying,
+                    isPromoPlaying = isPromoPlaying,
                     modifier = Modifier.fillMaxSize(),
                     onBackClick = onBackClick,
                     onTouchActiveChange = { isPlayerTouched = it },
                     onReportClick = reportAction
                 )
+
+                if (showNextOverlay && nextVideos.isNotEmpty()) {
+                    val nextVideo = nextVideos.first()
+                    DetailNextVideoOverlay(
+                        nextVideo = nextVideo,
+                        countdownSeconds = countdownSeconds,
+                        onPlayNow = {
+                            showNextOverlay = false
+                            onSelectNextVideo(nextVideo)
+                        },
+                        onCancel = {
+                            showNextOverlay = false
+                        }
+                    )
+                }
 
 // Show back arrow on promo video always.
 // On the actual video, show it only when player controls are visible.
@@ -623,7 +720,7 @@ fun MobileDetailsScreen(
                             activity?.let { act ->
                                 showLoginDialog(
                                     activity = act as ComponentActivity,
-                                    onSubscribe = { onSubscribeClick() },
+                                    onSubscribe = { onLoginClick() },
                                     onNotNow = { onBackClick() },
                                     "Continue watching",
                                     "Please log in to Add this video to your list."
@@ -645,7 +742,7 @@ fun MobileDetailsScreen(
                                 activity?.let { act ->
                                     showLoginDialog(
                                         activity = act as ComponentActivity,
-                                        onSubscribe = { onSubscribeClick() },
+                                        onSubscribe = { onLoginClick() },
                                         onNotNow = { onBackClick() },
                                         "Continue watching",
                                         "Please log in to like this video."
@@ -686,24 +783,467 @@ fun MobileDetailsScreen(
                     icon = Icons.Default.Share,
                     label = "Share",
                     onClick = {
-                        showShareDialog = true
+                        val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+
+                        if (!isLoggedIn) {
+                            android.widget.Toast.makeText(context, "Please log in to like this video .", android.widget.Toast.LENGTH_SHORT).show()
+                            onLoginClick()
+                        } else {
+                            showShareDialog = true
+                        }
+
                     }
                 )
 
                 // Report: logged-in users only (same check the Like / My List buttons use)
-                if (!preferenceManager.getString("Mobile_No").isNullOrBlank()) {
-                    DetailsActionItem(
-                        icon = Icons.Default.Flag,
-                        label = "Report",
-                        onClick = onReportClick
-                    )
-                }
+                DetailsActionItem(
+                    icon = Icons.Default.Flag,
+                    label = "Report",
+                    onClick = onReportClick
+                )
             }
 
             Spacer(
                 modifier = Modifier.height(10.dp)
             )
 
+            // NEXT VIDEOS SECTION
+            if (nextVideos.isNotEmpty()) {
+                val nextVideosAsVideo = remember(nextVideos) {
+                    nextVideos.map { dto ->
+                        Video(
+                            id = dto.effectiveId,
+                            title = dto.title.orEmpty(),
+                            description = dto.description.orEmpty(),
+                            duration = dto.duration.orEmpty(),
+                            thumbnail = dto.effectiveThumbnail,
+                            url = dto.videoUrl.orEmpty(),
+                            category = dto.category.orEmpty(),
+                            apiId = dto.effectiveId,
+                            thumbnailUrl = dto.effectiveThumbnail,
+                            isPremium = dto.isPremium,
+                            promoVideoUrl = dto.promoVideoUrl.orEmpty(),
+                            featured = dto.featured
+                        )
+                    }
+                }
+                NextVideosSection(
+                    video = video,
+                    nextVideos = nextVideosAsVideo,
+                    onSelectNextVideo = { selected ->
+                        nextVideos.firstOrNull { it.effectiveId == selected.id }?.let { dto ->
+                            onSelectNextVideo(dto)
+                        }
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+           /* if (nextVideos.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color(0xFF1F2530), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val headerText = if (!video.category.isNullOrBlank()) {
+                    "More in ${video.category}"
+                } else {
+                    "Next Videos"
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = headerText,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "${nextVideos.size} videos",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 12.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    nextVideos.forEach { nextVideo ->
+                        NextVideoItemRow(
+                            video = nextVideo,
+                            onClick = {
+                                onSelectNextVideo(nextVideo)
+                            }
+                        )
+                    }
+                }
+            }*/
+        }
+    }
+}
+
+@Composable
+fun NextVideosSection(
+    video: Video,
+    nextVideos: List<Video>,
+    onSelectNextVideo: (Video) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (nextVideos.isEmpty()) return
+
+    val headerText = if (!video.category.isNullOrBlank()) {
+        "More in ${video.category}"
+    } else {
+        "Up Next"
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(20.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF6366F1), Color(0xFF22D3EE))
+                        )
+                    )
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = headerText,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xFF1A2030))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "${nextVideos.size} videos",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Horizontal rail
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(end = 16.dp)
+        ) {
+            items(
+                items = nextVideos,
+                key = { it.id }
+            ) { nextVideo ->
+                NextVideoItemRow(
+                    video = nextVideo,
+                    onClick = { onSelectNextVideo(nextVideo) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun NextVideoItemRowd(
+    video: Video,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF111622))
+            .border(1.dp, Color(0xFF1F2530), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Thumbnail
+        Box(
+            modifier = Modifier
+                .width(128.dp)
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF1A2030))
+        ) {
+            AsyncImage(
+                model = video.thumbnailUrl,
+                contentDescription = video.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Bottom gradient for readability
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.5f to Color.Transparent,
+                            1f to Color(0xAA000000)
+                        )
+                    )
+            )
+
+            // Center play icon
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x99000000)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Duration badge
+            if (!video.duration.isNullOrBlank()) {
+                Text(
+                    text = video.duration,
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Info
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = video.title.orEmpty(),
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 19.sp
+            )
+
+            if (!video.category.isNullOrBlank()) {
+                Text(
+                    text = video.category,
+                    color = Color(0xFF818CF8),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF6366F1).copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
+    }
+}
+@Composable
+fun NextVideoItemRow(
+    video: Video,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .width(210.dp) // fixed width so the next card peeks in
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+    ) {
+        // Thumbnail
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF1A2030))
+        ) {
+            AsyncImage(
+                model = video.thumbnailUrl,
+                contentDescription = video.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Bottom gradient for readability
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.6f to Color.Transparent,
+                            1f to Color(0xAA000000)
+                        )
+                    )
+            )
+
+            // Play icon (bottom-left)
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+                    .size(18.dp)
+            )
+
+            // Duration (bottom-right)
+            video.duration?.takeIf { it.isNotBlank() }?.let { duration ->
+                Text(
+                    text = duration,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Title
+        Text(
+            text = video.title.orEmpty(),
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 2.dp)
+        )
+    }
+}
+
+@Composable
+private fun NextVideoItemRow(
+    video: com.dealshot.app.data.remote.dto.VideoDto,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF131722))
+            .border(1.dp, Color(0xFF242C3D), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Left: 16:9 Thumbnail with Duration Badge
+        Box(
+            modifier = Modifier
+                .width(130.dp)
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF1E232F))
+        ) {
+            AsyncImage(
+                model = video.thumbnailUrl ?: video.thumbnail,
+                contentDescription = video.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            video.duration?.takeIf { it.isNotBlank() }?.let { duration ->
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.8f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = duration,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Right side: Title & Category / Status
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = video.title.orEmpty().ifBlank { "Untitled Video" },
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                video.category?.takeIf { it.isNotBlank() }?.let { cat ->
+                    Text(
+                        text = cat,
+                        color = Color(0xFF3B82F6),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = " • ",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                }
+                Text(
+                    text = if (video.isPremium) "Premium" else "Free",
+                    color = if (video.isPremium) Color(0xFFF5C85A) else Color.Gray,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
@@ -721,6 +1261,7 @@ private fun InlinePlayer(
     duration: Long,
     onFullscreenClick: () -> Unit,
     showControls: Boolean,
+    isPromoPlaying: Boolean = false,
     modifier: Modifier = Modifier,
     onBackClick: (() -> Unit)? = null,
     onTouchActiveChange: (Boolean) -> Unit = {},
@@ -834,7 +1375,10 @@ private fun InlinePlayer(
                 if (showControls) {
                     Modifier.pointerInput(Unit) {
                         awaitEachGesture {
-                            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            awaitFirstDown(
+                                requireUnconsumed = false,
+                                pass = PointerEventPass.Initial
+                            )
                             onTouchActiveChange(true)
                             do {
                                 val event = awaitPointerEvent(PointerEventPass.Final)
@@ -908,7 +1452,7 @@ private fun InlinePlayer(
         )
 
         AnimatedVisibility(
-            visible = showControls && controlsVisible,
+            visible = showControls && controlsVisible && !isPromoPlaying,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -1241,6 +1785,7 @@ private fun QualityMenu(
                 .background(Color.White.copy(alpha = 0.2f))
         )
         // Report (logged-in users only; null when logged out)
+/*
         if (onReportClick != null) {
             Row(
                 modifier = Modifier
@@ -1276,6 +1821,7 @@ private fun QualityMenu(
                     .background(Color.White.copy(alpha = 0.2f))
             )
         }
+*/
         manualOptions.forEach { option ->
             QualityRow(
                 label = option.label,
@@ -1575,53 +2121,41 @@ private fun DetailsActionItem(
 
 
 }
-private fun showSubscriptionDialog(
+private fun showSubscriptionPreviewDialog(
     activity: ComponentActivity,
+    isLoggedIn: Boolean,
+    onLogin: () -> Unit,
     onSubscribe: () -> Unit,
     onNotNow: () -> Unit
-)
-{
-
-    val dialog =
-        Dialog(activity)
-
-    dialog.requestWindowFeature(
-        Window.FEATURE_NO_TITLE
-    )
-
-    dialog.setContentView(
-        R.layout.dialog_subscription
-    )
-
+) {
+    val dialog = Dialog(activity)
+    dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+    dialog.setContentView(R.layout.dialog_subscription)
     dialog.setCancelable(false)
+    dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
-    dialog.window?.setBackgroundDrawableResource(
-        android.R.color.transparent
-    )
+    val txtMessage = dialog.findViewById<TextView>(R.id.dialog_message)
+    if (!isLoggedIn) {
+        txtMessage?.text = "Your 30-second preview has ended. Login and subscribe to watch the full video."
+    } else {
+        txtMessage?.text = "Your 30-second preview has ended. subscribe to watch the full video."
+    }
 
-    val btnNotNow =
-        dialog.findViewById<TextView>(
-            R.id.btn_not_now
-        )
-
-    val btnOk =
-        dialog.findViewById<TextView>(
-            R.id.btn_ok
-        )
+    val btnNotNow = dialog.findViewById<TextView>(R.id.btn_not_now)
+    val btnOk = dialog.findViewById<TextView>(R.id.btn_ok)
 
     btnNotNow.setOnClickListener {
-
         dialog.dismiss()
-
         onNotNow()
     }
 
     btnOk.setOnClickListener {
-
         dialog.dismiss()
-
-
-        onSubscribe()
+        if (!isLoggedIn) {
+            onLogin()
+        } else {
+            onSubscribe()
+        }
     }
 
     dialog.show()
@@ -1693,4 +2227,147 @@ private fun showLoginDialog(
     }
 
     dialog.show()
+}
+
+@Composable
+private fun DetailNextVideoOverlay(
+    nextVideo: com.dealshot.app.data.remote.dto.VideoDto,
+    countdownSeconds: Int,
+    onPlayNow: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xEC090C10))
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "UP NEXT IN CATEGORY",
+                color = Color(0xFFF5C85A),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF131722))
+                    .border(1.dp, Color(0xFF242C3D), RoundedCornerShape(12.dp))
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(110.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1E232F))
+                ) {
+                    AsyncImage(
+                        model = nextVideo.thumbnailUrl ?: nextVideo.thumbnail,
+                        contentDescription = nextVideo.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = nextVideo.title.orEmpty().ifBlank { "Untitled Video" },
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${nextVideo.duration.orEmpty().ifBlank { "Video" }} • ${nextVideo.category.orEmpty()}",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(35.dp)
+            ) {
+                CircularProgressIndicator(
+                    progress = { (6 - countdownSeconds) / 5f },
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color(0xFFF5C85A),
+                    strokeWidth = 2.dp,
+                    trackColor = Color.White.copy(alpha = 0.2f)
+                )
+                Text(
+                    text = "$countdownSeconds",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "Playing next video in $countdownSeconds seconds...",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = onPlayNow,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5C85A), contentColor = Color.Black),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Play Now", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
 }

@@ -1,27 +1,53 @@
 package com.dealshot.app.data.remote.repository.report
 
-enum class ReportReason(
-    val label: String,
-    val apiValue: String,          // value sent to the backend; change when the contract is final
-    val commentRequired: Boolean = false
-) {
-    INAPPROPRIATE_CONTENT("Inappropriate content", "inappropriate_content"),
-    VIOLENCE_HARMFUL("Violence or harmful content", "violence_harmful"),
-    HATE_HARASSMENT("Hate speech or harassment", "hate_harassment"),
-    COPYRIGHT("Copyright violation", "copyright_violation"),
-    MISLEADING("Misleading information", "misleading_information"),
-    SPAM_SCAM("Spam or scam", "spam_scam"),
-    OTHER("Other", "other", commentRequired = true)
-}
+import kotlinx.serialization.Serializable
 
-/** Request body. Field names match the suggested contract: videoId, reason, comment. */
-data class ReportRequest(
-    val videoId: String,
-    val reason: String,
-    val comment: String
+data class ReportReason(
+    val id: String,
+    val label: String
 )
 
-/** isSimulated = true means nothing was sent to a server (mock only). */
-data class ReportReceipt(val isSimulated: Boolean = false)
+@Serializable
+data class ReportReasonItemDto(
+    val id: String,
+    val label: String
+)
 
-class ReportUnavailableException : Exception("Report service is not connected yet")
+@Serializable
+data class ReportMasterDataDto(
+    val reasons: List<ReportReasonItemDto> = emptyList()
+)
+
+@Serializable
+data class ReportMasterDataResponseDto(
+    val success: Boolean = false,
+    val message: String = "",
+    val data: ReportMasterDataDto? = null
+)
+
+@Serializable
+data class SubmitReportRequestDto(
+    val videoId: String,
+    val reason: String
+)
+
+@Serializable
+data class SubmitReportResponseDto(
+    val success: Boolean = false,
+    val message: String = "",
+    val data: SubmitReportDataDto? = null
+)
+
+@Serializable
+data class SubmitReportDataDto(
+    val id: String = "",
+    val userId: String = "",
+    val videoId: String = "",
+    val videoTitle: String? = null,
+    val reason: String = "",
+    val comment: String? = null,
+    val description: String? = null,
+    val status: String = "pending",
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)

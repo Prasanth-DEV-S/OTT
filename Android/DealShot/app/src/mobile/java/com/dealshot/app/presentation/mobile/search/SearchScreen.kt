@@ -281,7 +281,7 @@ private fun SearchInitialState(
         }
 
         // Recent Searches
-        if (recentSearches.isNotEmpty()) {
+      /*  if (recentSearches.isNotEmpty()) {
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -331,10 +331,10 @@ private fun SearchInitialState(
                     }
                 }
             }
-        }
+        }*/
 
         // Suggested / Trending Tags
-        if (suggestedTags.isNotEmpty()) {
+       /* if (suggestedTags.isNotEmpty()) {
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -369,7 +369,7 @@ private fun SearchInitialState(
                     }
                 }
             }
-        }
+        }*/
     }
 }
 

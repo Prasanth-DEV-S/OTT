@@ -75,7 +75,9 @@ fun ProfileRoute(
                 ProfileEffect.Logout -> onLogout()
                 ProfileEffect.DeleteAccount -> onDeleteAccount()
                 ProfileEffect.ProfileCreated,
-                ProfileEffect.ProfileUpdated -> Unit
+                ProfileEffect.ProfileUpdated -> {
+                    viewModel.onIntent(ProfileIntent.LoadProfiles)
+                }
                 is ProfileEffect.ProfileDeleted -> Unit
                 is ProfileEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
@@ -84,11 +86,11 @@ fun ProfileRoute(
         }
     }
 
-    val displayProfiles = remember(state.profiles) {
+    val displayProfiles = remember(state.profiles, state.username) {
         state.profiles.map { dto ->
             ProfileListItem(
                 id = dto.profileId,
-                name = dto.name,
+                name = if (dto.isDefault && state.username.isNotBlank()) state.username else dto.name,
                 avatarUrl = dto.avatarUrl.takeIf { !it.isNullOrBlank() } ?: dto.avatar,
                 isPrimary = dto.isDefault
             )

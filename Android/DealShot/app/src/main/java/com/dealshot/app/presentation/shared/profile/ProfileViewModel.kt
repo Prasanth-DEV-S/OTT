@@ -83,16 +83,16 @@ class ProfileViewModel(
                 userPreferences.avatarUrl
             ) { mobile, name, email, avatar ->
                 val finalMobile = mobile.orEmpty()
-                val finalName = when {
-                    !name.isNullOrBlank() && name != "User Name" && name != "Guest" -> name
-                    finalMobile.length >= 4 -> "User ${finalMobile.takeLast(4)}"
-                    else -> ""
-                }
+                val cleanName = name?.trim()?.takeIf { it.isNotBlank() && it != "User Name" && it != "Guest" }
+                val fallbackName = if (finalMobile.length >= 4) "User ${finalMobile.takeLast(4)}" else ""
+                val finalName = cleanName ?: fallbackName
 
                 _uiState.update { state ->
+                    val currentNameValid = state.username.isNotBlank() && state.username != "User Name" && state.username != "Guest"
                     state.copy(
                         phoneNumber = finalMobile,
-                        username = if (state.username.isBlank() || state.username == "Guest" || state.username == "User Name") finalName else state.username,
+                        username = if (currentNameValid) state.username else finalName,
+                        accountName = state.accountName.ifBlank { finalName },
                         email = state.email.ifBlank { email.orEmpty() },
                         avatar = state.avatar.ifBlank { avatar.orEmpty() },
                         profileImageUrl = state.profileImageUrl ?: avatar?.takeIf { it.isNotBlank() }
@@ -311,14 +311,18 @@ class ProfileViewModel(
             result.fold(
                 onSuccess = { accountData ->
                     _uiState.update { current ->
+                        val cleanAccountName = accountData.name?.trim()?.takeIf { it.isNotBlank() && it != "User Name" && it != "Guest" }
                         val mainEmail = accountData.email?.takeIf { it.isNotBlank() } ?: current.accountEmail
                         val mainGender = accountData.gender?.takeIf { it.isNotBlank() } ?: current.accountGender
-                        val mainName = accountData.name?.takeIf { it.isNotBlank() } ?: current.accountName
+                        val mainName = cleanAccountName ?: current.accountName.takeIf { it.isNotBlank() && it != "User Name" && it != "Guest" } ?: ""
+
+                        val currentNameValid = current.username.isNotBlank() && current.username != "User Name" && current.username != "Guest"
+
                         current.copy(
                             accountEmail = mainEmail,
                             accountGender = mainGender,
                             accountName = mainName,
-                            username = accountData.name?.takeIf { it.isNotBlank() } ?: current.username,
+                            username = if (cleanAccountName != null) cleanAccountName else if (currentNameValid) current.username else mainName,
                             email = current.email.ifBlank { mainEmail },
                             gender = current.gender.ifBlank { mainGender },
                             avatar = accountData.avatar?.takeIf { it.isNotBlank() } ?: current.avatar,
@@ -465,7 +469,9 @@ class ProfileViewModel(
                     userPreferences.saveActiveProfileId(it.profileId)
                 }
 
-                val finalName = selected?.name?.takeIf { it.isNotBlank() } ?: userName
+                val cleanSelectedName = selected?.name?.trim()?.takeIf { it.isNotBlank() && it != "User Name" && it != "Guest" }
+                val cleanUserName = userName.trim().takeIf { it.isNotBlank() && it != "User Name" && it != "Guest" }
+                val finalName = cleanSelectedName ?: cleanUserName ?: if (mobileNumber.length >= 4) "User ${mobileNumber.takeLast(4)}" else ""
                 val finalEmail = selected?.email?.takeIf { it.isNotBlank() } ?: userEmail
                 val finalAvatar = (selected?.avatarUrl ?: selected?.avatar).orEmpty().ifBlank { cachedAvatar }
 
@@ -478,13 +484,15 @@ class ProfileViewModel(
                 }
 
                 _uiState.update { state ->
+                    val currentNameValid = state.username.isNotBlank() && state.username != "User Name" && state.username != "Guest"
                     state.copy(
                         isLoading = false,
                         phoneNumber = mobileNumber,
                         email = finalEmail,
                         profiles = profilesList,
                         selectedProfile = selected ?: state.selectedProfile,
-                        username = state.username.ifBlank { finalName },
+                        username = if (currentNameValid) state.username else finalName,
+                        accountName = state.accountName.ifBlank { finalName },
                         avatar = state.avatar.ifBlank { finalAvatar },
                         profileImageUrl = state.profileImageUrl ?: finalAvatar.takeIf { it.isNotBlank() },
                         isKidsProfile = selected?.isKidsProfile ?: state.isKidsProfile,

@@ -12,7 +12,7 @@
         android:bottom="128dp"
         android:gravity="center">
         <bitmap
-            android:src="@drawable/ic_launcherdealshot_splash_safe"
+            android:src="@drawable/splash_screen"
             android:gravity="center" />
     </item>
 </layer-list>

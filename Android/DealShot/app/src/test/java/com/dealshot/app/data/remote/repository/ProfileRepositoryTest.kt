@@ -155,6 +155,7 @@ private class FakeProfileApiService : ProfileApiService {
 private class FakeUserApiService : UserApiService {
     override suspend fun getUserAccountProfile() = Response.success(com.dealshot.app.data.remote.dto.UserAccountResponseDto(success = true))
     override suspend fun updateUserAccountProfile(request: com.dealshot.app.data.remote.dto.UpdateUserAccountRequestDto) = Response.success(com.dealshot.app.data.remote.dto.UserAccountResponseDto(success = true))
+    override suspend fun updateUserAccountProfilePatch(request: com.dealshot.app.data.remote.dto.UpdateUserAccountRequestDto) = Response.success(com.dealshot.app.data.remote.dto.UserAccountResponseDto(success = true))
     override suspend fun selectAccountPresetAvatar(request: com.dealshot.app.data.remote.dto.SelectPresetAvatarRequestDto) = Response.success(com.dealshot.app.data.remote.dto.UserAccountResponseDto(success = true))
     override suspend fun uploadCustomAvatar(avatar: okhttp3.MultipartBody.Part) = Response.success(com.dealshot.app.data.remote.dto.UserAccountResponseDto(success = true))
     override suspend fun deleteUserAccount() = Response.success(com.dealshot.app.data.remote.dto.UserAccountResponseDto(success = true))

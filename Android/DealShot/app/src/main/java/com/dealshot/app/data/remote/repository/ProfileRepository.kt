@@ -216,15 +216,14 @@ class ProfileRepositoryImpl(
     ): Result<UserAccountDataDto> {
         val cleanName = name?.trim()?.takeIf { it.isNotBlank() }
         val cleanEmail = email?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
-        val cleanGender = gender?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+
+        val validGenders = setOf("male", "female", "other", "prefer_not_to_say")
+        val cleanGender = gender?.trim()?.lowercase()
+            ?.replace(" ", "_")
+            ?.takeIf { it in validGenders }
 
         if (cleanName != null && (cleanName.length < 2 || cleanName.length > 50)) {
             return Result.failure(IllegalArgumentException("Name must be between 2 and 50 characters."))
-        }
-
-        val validGenders = setOf("male", "female", "other", "prefer_not_to_say")
-        if (cleanGender != null && cleanGender !in validGenders) {
-            return Result.failure(IllegalArgumentException("Invalid gender. Choose male, female, other, or prefer_not_to_say."))
         }
 
         val request = UpdateUserAccountRequestDto(
@@ -234,11 +233,23 @@ class ProfileRepositoryImpl(
         )
 
         return try {
-            val response = userApi.updateUserAccountProfile(request)
+            var response = userApi.updateUserAccountProfile(request)
+            if (response.code() == 405 || response.code() == 404) {
+                response = userApi.updateUserAccountProfilePatch(request)
+            }
+
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body != null && body.success && body.data != null) {
                     Result.success(body.data)
+                } else if (body != null && body.success) {
+                    Result.success(
+                        UserAccountDataDto(
+                            name = cleanName,
+                            email = cleanEmail,
+                            gender = cleanGender
+                        )
+                    )
                 } else {
                     Result.failure(Exception(body?.message ?: "Failed to update account profile"))
                 }

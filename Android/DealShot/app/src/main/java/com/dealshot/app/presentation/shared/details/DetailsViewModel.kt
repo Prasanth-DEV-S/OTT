@@ -4,8 +4,13 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dealshot.app.core.error.AppErrorHandler
-import com.dealshot.app.data.remote.repository.VideoDetailsRepository
+import com.dealshot.app.data.remote.ApiClient
+import com.dealshot.app.data.remote.dto.VideoDto
+import com.dealshot.app.data.remote.mapper.toDomain
 import com.dealshot.app.data.remote.repository.SavedVideosRepository
+import com.dealshot.app.data.remote.repository.VideoDetailsRepository
+import com.dealshot.app.data.remote.repository.VideoRepository
+import com.dealshot.app.data.remote.repository.VideoRepositoryImpl
 import com.dealshot.app.data.remote.repository.like.LikedVideosRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -14,24 +19,27 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 class DetailsViewModel(
     private val videoDetailsRepository: VideoDetailsRepository,
     private val savedVideosRepository: SavedVideosRepository,
-    private val likedVideosRepository: LikedVideosRepository
+    private val likedVideosRepository: LikedVideosRepository,
+    videoRepository: VideoRepository? = null
 ) : ViewModel() {
+
+    private val videoRepo: VideoRepository by lazy {
+        videoRepository ?: VideoRepositoryImpl(ApiClient.videoApi)
+    }
 
     private val _uiState = MutableStateFlow(DetailsState())
     val uiState = _uiState.asStateFlow()
     private val _effect = Channel<DetailsEffect>(Channel.BUFFERED)
     val effect = _effect.receiveAsFlow()
 
-
     fun onIntent(intent: DetailsIntent) {
-
         when (intent) {
             is DetailsIntent.Initialize -> {
+                val initialId = intent.video.apiId.ifBlank { intent.video.id }
                 _uiState.update {
                     it.copy(
                         video = intent.video,
@@ -43,10 +51,31 @@ class DetailsViewModel(
                     )
                 }
 
-                val initialId = intent.video.apiId.ifBlank { intent.video.id }
                 loadVideoDetails(initialId)
                 loadVideoLikeStatus(initialId)
                 loadMyWatchListStatus(initialId)
+                loadNextVideos(category = intent.video.category, currentVideoId = initialId)
+            }
+
+            is DetailsIntent.SelectNextVideo -> {
+                val domainVideo = intent.videoDto.toDomain(intent.videoDto.id)
+                val targetId = domainVideo.apiId.ifBlank { domainVideo.id }
+
+                _uiState.update {
+                    it.copy(
+                        video = domainVideo,
+                        videoDetails = null,
+                        isLoading = true,
+                        error = null,
+                        isInMyWatchLater = false,
+                        isLiked = false
+                    )
+                }
+
+                loadVideoDetails(targetId)
+                loadVideoLikeStatus(targetId)
+                loadMyWatchListStatus(targetId)
+                loadNextVideos(category = domainVideo.category, currentVideoId = targetId)
             }
 
             DetailsIntent.BackClicked ->
@@ -58,10 +87,8 @@ class DetailsViewModel(
             DetailsIntent.MyListClicked ->
                 toggleMyList()
 
-            DetailsIntent.LikeClicked -> {
-                /*add condition for without Login user 14102026 */
+            DetailsIntent.LikeClicked ->
                 toggleLike()
-            }
 
             DetailsIntent.ShareClicked ->
                 sendEffect(DetailsEffect.ShareVideo)
@@ -71,27 +98,55 @@ class DetailsViewModel(
         }
     }
 
+    private fun loadNextVideos(category: String, currentVideoId: String) {
+        val cleanCategory = category.trim()
+        if (cleanCategory.isBlank() || cleanCategory.equals("Home", ignoreCase = true)) return
+
+        viewModelScope.launch {
+            try {
+                val catResult = videoRepo.getVideosByCategory(cleanCategory)
+                var categoryVideos = catResult.getOrDefault(emptyList())
+
+                if (categoryVideos.isEmpty()) {
+                    val allVideos = videoRepo.getVideos()
+                    categoryVideos = allVideos.filter { video ->
+                        video.category?.trim()?.equals(cleanCategory, ignoreCase = true) == true
+                    }
+                } else {
+                    categoryVideos = categoryVideos.filter { video ->
+                        video.category.isNullOrBlank() || video.category.trim().equals(cleanCategory, ignoreCase = true)
+                    }
+                }
+
+                val nextList = categoryVideos.filterNot {
+                    it.id.trim().equals(currentVideoId.trim(), ignoreCase = true) ||
+                    it.altId?.trim()?.equals(currentVideoId.trim(), ignoreCase = true) == true
+                }
+
+                _uiState.update { current ->
+                    current.copy(nextVideos = nextList)
+                }
+            } catch (e: Exception) {
+                Log.w("DetailsVM", "Failed to load next videos for category: $cleanCategory", e)
+            }
+        }
+    }
+
     private fun loadMyWatchListStatus(videoId: String) {
         viewModelScope.launch {
             try {
                 val videos = savedVideosRepository.getVideos()
-
                 _uiState.update {
                     it.copy(
                         isInMyWatchLater = videos.any { saved ->
-                            saved.id == videoId
+                            saved.id == videoId || saved.effectiveId == videoId
                         }
                     )
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                // Keep the details screen usable if My List status fails.
-                Log.e(
-                    "DetailsVM",
-                    "Failed to load My List status",
-                    e
-                )
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isInMyWatchLater = false) }
             }
         }
     }
@@ -105,12 +160,8 @@ class DetailsViewModel(
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                Log.e(
-                    "DetailsVM",
-                    "Failed to load video like status",
-                    e
-                )
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isLiked = false) }
             }
         }
     }
@@ -150,22 +201,30 @@ class DetailsViewModel(
                         }
                     },
                     onFailure = { error ->
+                        val msg = if (error.message?.contains("401") == true) "Please log in to like this video ." else AppErrorHandler.getUserMessage(error)
                         _uiState.update {
                             it.copy(
                                 isUpdatingLike = false,
-                                error = AppErrorHandler.getUserMessage(error)
+                                error = msg
                             )
+                        }
+                        if (msg.contains("log in", ignoreCase = true)) {
+                            sendEffect(DetailsEffect.OpenLogin)
                         }
                     }
                 )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                val msg = if (e.message?.contains("401") == true) "Please log in to like this video ." else AppErrorHandler.getUserMessage(e)
                 _uiState.update {
                     it.copy(
                         isUpdatingLike = false,
-                        error = AppErrorHandler.getUserMessage(e)
+                        error = msg
                     )
+                }
+                if (msg.contains("log in", ignoreCase = true)) {
+                    sendEffect(DetailsEffect.OpenLogin)
                 }
             }
         }
@@ -200,11 +259,15 @@ class DetailsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                val msg = if (e.message?.contains("401") == true) "Please log in to Add this video to your list." else AppErrorHandler.getUserMessage(e)
                 _uiState.update {
                     it.copy(
                         isUpdatingMyWatchLater = false,
-                        error = AppErrorHandler.getUserMessage(e)
+                        error = msg
                     )
+                }
+                if (msg.contains("log in", ignoreCase = true)) {
+                    sendEffect(DetailsEffect.OpenLogin)
                 }
             }
         }
@@ -213,15 +276,19 @@ class DetailsViewModel(
     private fun loadVideoDetails(videoId: String) {
         viewModelScope.launch {
             try {
-                val details =
-                    videoDetailsRepository.getVideoDetails(videoId)
+                val details = videoDetailsRepository.getVideoDetails(videoId)
 
-                _uiState.update {
-                    it.copy(
+                _uiState.update { current ->
+                    current.copy(
                         videoDetails = details,
                         isLoading = false,
                         error = null
                     )
+                }
+
+                // If details category is available, refresh next videos list with exact category
+                details.category?.takeIf { it.isNotBlank() }?.let { cat ->
+                    loadNextVideos(category = cat, currentVideoId = videoId)
                 }
             } catch (e: CancellationException) {
                 throw e

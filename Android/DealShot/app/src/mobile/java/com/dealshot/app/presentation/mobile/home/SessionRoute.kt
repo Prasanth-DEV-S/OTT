@@ -83,7 +83,7 @@ fun SessionRoute(
     ) {
         // Full-screen dynamic splash image adjusting across screen sizes (-swDP)
         AsyncImage(
-            model = R.drawable.ic_launcherdealshot_splash_safe,
+            model = R.drawable.splash_screen,
             contentDescription = "DealShot Fullscreen Splash",
             contentScale = ContentScale.Fit,
             modifier = Modifier

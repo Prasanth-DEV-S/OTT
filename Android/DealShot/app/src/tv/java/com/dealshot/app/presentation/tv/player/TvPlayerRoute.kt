@@ -19,7 +19,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import com.dealshot.app.data.video.Video
 import com.dealshot.app.presentation.shared.player.VideoPlayerEffect
@@ -77,15 +76,7 @@ fun TvPlayerRoute(
     var isVideoUnavailable by remember(video.url) { mutableStateOf(false) }
 
     val exoPlayer = remember(video.url) {
-        val renderersFactory = DefaultRenderersFactory(context).apply {
-            setExtensionRendererMode(
-                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
-            )
-        }
-
-        ExoPlayer.Builder(context, renderersFactory)
-            .build()
-            .apply {
+        com.dealshot.app.core.media.ExoPlayerFactory.createExoPlayer(context).apply {
                 val isHttpUrl =
                     video.url.startsWith("http://") ||
                             video.url.startsWith("https://")
@@ -121,6 +112,7 @@ fun TvPlayerRoute(
             when (effect) {
                 VideoPlayerEffect.NavigateBack -> onBack()
                 VideoPlayerEffect.OpenSubscription -> onOpenSubscription(video)
+                VideoPlayerEffect.OpenLogin -> onOpenSubscription(video)
                 is VideoPlayerEffect.PauseAndShowLogin -> {
                     exoPlayer.pause()
                     exoPlayer.seekTo(effect.limitMs)
@@ -132,6 +124,23 @@ fun TvPlayerRoute(
                         exoPlayer.seekTo(exoPlayer.currentPosition)
                     }
                     exoPlayer.play()
+                }
+                is VideoPlayerEffect.UpdatePlaybackUrl -> {
+                    try {
+                        val currentPos = if (effect.positionMs > 0L) effect.positionMs else exoPlayer.currentPosition
+                        exoPlayer.setMediaItem(MediaItem.fromUri(effect.playbackUrl))
+                        exoPlayer.prepare()
+                        if (currentPos > 0L) {
+                            exoPlayer.seekTo(currentPos)
+                        }
+                        if (effect.shouldPlay) {
+                            exoPlayer.play()
+                        } else {
+                            exoPlayer.pause()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("TvPlayerRoute", "Failed to switch playback URL: ${effect.playbackUrl}", e)
+                    }
                 }
             }
         }

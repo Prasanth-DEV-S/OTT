@@ -7,11 +7,13 @@ import com.dealshot.app.DealShotApplication
 import com.dealshot.app.core.error.AppErrorHandler
 import com.dealshot.app.data.preferences.UserPreferences
 import com.dealshot.app.data.remote.ApiClient
+import com.dealshot.app.data.remote.dto.toSubscriptionState
 import com.dealshot.app.data.remote.repository.AuthRepository
 import com.dealshot.app.data.remote.repository.AuthRepositoryImpl
 import com.dealshot.app.data.subscription.SubscriptionPlan
 import com.dealshot.app.data.subscription.SubscriptionRepository
 import com.dealshot.app.data.subscription.SubscriptionRepositoryImpl
+import com.dealshot.app.data.subscription.hasPremiumAccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,37 +58,100 @@ class SubscriptionViewModel(
         loadPlans()
     }
 
-    private fun loadPlans() {
+    fun loadPlans() {
         viewModelScope.launch {
             _state.update {
                 it.copy(
                     isLoading = true,
-                    error = null
+                    error = null,
+                    planDetailsError = null
                 )
             }
 
             try {
+                // 1. Refresh user subscription status from /api/auth/me
+                var currentSubState = _state.value.userSubscription
+                try {
+                    val userDto = authRepo.getCurrentUser()
+                    val authSub = userDto.subscription.toSubscriptionState()
+                    currentSubState = authSub
+                    prefs.saveSubscriptionState(
+                        planId = authSub.planId,
+                        planName = authSub.planName,
+                        startDate = authSub.startDate,
+                        endDate = authSub.endDate,
+                        isActive = authSub.isActive,
+                        status = authSub.status
+                    )
+                } catch (e: Exception) {
+                    Log.w("SubscriptionViewModel", "Failed to refresh /auth/me user status", e)
+                }
+
+                // 2. Fetch available subscription plans
                 val plans = repository.getSubscriptionPlans()
+
+                val isUserSubscribed = hasPremiumAccess(currentSubState)
+
+                var featuredPlan: SubscriptionPlan? = null
+                var activePlan: SubscriptionPlan? = null
+
+                if (isUserSubscribed) {
+                    val targetPlanId = currentSubState.planId
+                    if (!targetPlanId.isNullOrBlank()) {
+                        try {
+                            activePlan = repository.getSubscriptionPlanDetails(targetPlanId)
+                        } catch (e: Exception) {
+                            Log.w("SubscriptionViewModel", "Failed to fetch active plan details for $targetPlanId", e)
+                        }
+                    }
+                    if (activePlan == null) {
+                        activePlan = plans.firstOrNull { it.id == targetPlanId }
+                            ?: plans.firstOrNull()
+                    }
+                } else {
+                    val targetPlanId = currentSubState.planId.takeIf { !it.isNullOrBlank() }
+                        ?: plans.firstOrNull { it.code.equals("BASIC", ignoreCase = true) || it.id == "6acca54a964aec80e86e0d4e" }?.id
+                        ?: plans.firstOrNull()?.id
+
+                    if (!targetPlanId.isNullOrBlank()) {
+                        try {
+                            featuredPlan = repository.getSubscriptionPlanDetails(targetPlanId)
+                        } catch (e: Exception) {
+                            Log.w("SubscriptionViewModel", "Failed to fetch featured plan details for $targetPlanId", e)
+                        }
+                    }
+                    if (featuredPlan == null) {
+                        featuredPlan = plans.firstOrNull { it.id == targetPlanId }
+                            ?: plans.firstOrNull()
+                    }
+                }
 
                 _state.update {
                     it.copy(
                         plans = plans,
-                        selectedPlan = plans.firstOrNull(),
-                        isLoading = false
+                        selectedPlan = activePlan ?: featuredPlan ?: plans.firstOrNull(),
+                        userSubscription = currentSubState,
+                        activePlanDetails = activePlan,
+                        featuredPlanDetails = featuredPlan,
+                        showNoSubscriptionPopup = !isUserSubscribed,
+                        isLoading = false,
+                        error = null
                     )
                 }
+
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                Log.e("SubscriptionViewModel", "Failed to load plans or subscription status", e)
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Failed to load subscription plans"
+                        error = AppErrorHandler.getUserMessage(e)
                     )
                 }
 
                 sendEffect(
-                    SubscriptionEffect.ShowError(
-                        e.message ?: "Failed to load subscription plans"
-                    )
+                    SubscriptionEffect.ShowError(AppErrorHandler.getUserMessage(e))
                 )
             }
         }
@@ -127,6 +192,22 @@ class SubscriptionViewModel(
                 _state.update {
                     it.copy(error = null)
                 }
+            }
+
+            SubscriptionIntent.DismissNoSubscriptionPopup -> {
+                _state.update {
+                    it.copy(showNoSubscriptionPopup = false)
+                }
+            }
+
+            SubscriptionIntent.UpgradePlanClicked -> {
+                _state.update {
+                    it.copy(showNoSubscriptionPopup = false)
+                }
+            }
+
+            SubscriptionIntent.RetryLoadClicked -> {
+                loadPlans()
             }
         }
     }
@@ -175,7 +256,7 @@ class SubscriptionViewModel(
                         )
 
                         // 2. Refresh authoritative user details from /api/auth/me
-                        try {
+                        val updatedUserSub = try {
                             val userDto = authRepo.getCurrentUser()
                             prefs.saveSubscriptionState(
                                 planId = userDto.subscription.planId ?: resolvedPlanId,
@@ -185,16 +266,24 @@ class SubscriptionViewModel(
                                 isActive = userDto.subscription.isActive,
                                 status = userDto.subscription.status
                             )
+                            userDto.subscription.toSubscriptionState(resolvedPlanName)
                         } catch (e: Exception) {
-                            Log.w(
-                                "SubscriptionViewModel",
-                                "Failed to refresh /auth/me after activation, keeping confirmed activation state",
-                                e
+                            com.dealshot.app.data.subscription.SubscriptionState(
+                                isActive = true,
+                                planId = resolvedPlanId,
+                                planName = resolvedPlanName,
+                                startDate = resolvedStartDate,
+                                endDate = resolvedEndDate,
+                                status = resolvedStatus
                             )
                         }
 
                         _state.update {
-                            it.copy(isProcessing = false)
+                            it.copy(
+                                isProcessing = false,
+                                showNoSubscriptionPopup = false,
+                                userSubscription = updatedUserSub
+                            )
                         }
 
                         sendEffect(SubscriptionEffect.ShowSuccessDialog)

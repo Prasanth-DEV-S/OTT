@@ -1,39 +1,52 @@
 package com.dealshot.app.data.remote.repository.report
 
-import kotlinx.coroutines.delay
-import retrofit2.HttpException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
-import java.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
 
-/** The single integration point for submitting a report. */
-interface ReportRepository {
-    suspend fun submitReport(request: ReportRequest): Result<ReportReceipt>
-}
-
-// ---------------- Real implementation (not wired yet) ----------------
-
-object ReportEndpoints {
-    const val REPORT_VIDEO = "reports"   // placeholder: change when the backend contract is final
-}
-
 interface ReportApiService {
-    @POST(ReportEndpoints.REPORT_VIDEO)
-    suspend fun reportVideo(@Body body: ReportRequest): Response<Unit>
+    @GET("reports/master-data")
+    suspend fun getMasterData(): Response<ReportMasterDataResponseDto>
+
+    @POST("reports")
+    suspend fun submitReport(@Body body: SubmitReportRequestDto): Response<SubmitReportResponseDto>
+}
+
+interface ReportRepository {
+    suspend fun getMasterData(): Result<List<ReportReason>>
+    suspend fun submitReport(request: SubmitReportRequestDto): Result<SubmitReportResponseDto>
 }
 
 class ReportRepositoryImpl(
     private val api: ReportApiService
 ) : ReportRepository {
-    override suspend fun submitReport(request: ReportRequest): Result<ReportReceipt> {
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    override suspend fun getMasterData(): Result<List<ReportReason>> {
         return try {
-            val response = api.reportVideo(request)
-            if (response.isSuccessful) {
-                Result.success(ReportReceipt(isSimulated = false))
+            val response = api.getMasterData()
+            val body = response.body()
+
+            if (response.isSuccessful && body?.success == true) {
+                val reasonsList = body.data?.reasons.orEmpty().map { dto ->
+                    ReportReason(
+                        id = dto.id,
+                        label = dto.label
+                    )
+                }
+                Result.success(reasonsList)
             } else {
-                Result.failure(HttpException(response))
+                val msg = parseErrorMessage(response)
+                    ?: body?.message?.ifBlank { null }
+                    ?: "Failed to load report reasons (${response.code()})"
+                Result.failure(Exception(msg))
             }
         } catch (e: CancellationException) {
             throw e
@@ -41,25 +54,37 @@ class ReportRepositoryImpl(
             Result.failure(e)
         }
     }
-}
 
-// ---------------- Mock for UI testing only ----------------
+    override suspend fun submitReport(request: SubmitReportRequestDto): Result<SubmitReportResponseDto> {
+        return try {
+            val response = api.submitReport(request)
+            val body = response.body()
 
-enum class MockReportOutcome {
-    NOT_CONNECTED,       // fails with "service unavailable": never pretends to succeed
-    SIMULATED_SUCCESS,   // success UI, clearly labelled as test mode (nothing is sent)
-    SIMULATED_FAILURE    // generic failure, to test the error + Retry flow
-}
+            if ((response.isSuccessful || response.code() == 201) && body != null && body.success) {
+                Result.success(body)
+            } else {
+                val msg = parseErrorMessage(response)
+                    ?: body?.message?.ifBlank { null }
+                    ?: "Failed to submit video report (${response.code()})"
+                Result.failure(Exception(msg))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
-class MockReportRepository(
-    private val outcome: MockReportOutcome = MockReportOutcome.NOT_CONNECTED
-) : ReportRepository {
-    override suspend fun submitReport(request: ReportRequest): Result<ReportReceipt> {
-        delay(1_200L) // lets you see the loading state
-        return when (outcome) {
-            MockReportOutcome.NOT_CONNECTED -> Result.failure(ReportUnavailableException())
-            MockReportOutcome.SIMULATED_SUCCESS -> Result.success(ReportReceipt(isSimulated = true))
-            MockReportOutcome.SIMULATED_FAILURE -> Result.failure(IOException("Simulated failure"))
+    private fun parseErrorMessage(response: Response<*>): String? {
+        return try {
+            val errorBody = response.errorBody()?.string()
+            if (!errorBody.isNullOrBlank()) {
+                val element = json.parseToJsonElement(errorBody)
+                element.jsonObject["message"]?.jsonPrimitive?.contentOrNull
+                    ?: element.jsonObject["error"]?.jsonPrimitive?.contentOrNull
+            } else null
+        } catch (_: Exception) {
+            null
         }
     }
 }
