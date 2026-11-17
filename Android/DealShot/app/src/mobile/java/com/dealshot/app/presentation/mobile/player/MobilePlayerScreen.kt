@@ -1091,7 +1091,7 @@ private fun HlsQualityMenu(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Auto",
+                        text = "Autoff",
                         color = if (isSelected) Color(0xFFE8C575) else Color.White,
                         fontSize = 13.5.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal

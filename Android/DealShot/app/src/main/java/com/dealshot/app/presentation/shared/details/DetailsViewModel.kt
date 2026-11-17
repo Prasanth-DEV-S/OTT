@@ -8,10 +8,14 @@ import com.dealshot.app.data.remote.ApiClient
 import com.dealshot.app.data.remote.dto.VideoDto
 import com.dealshot.app.data.remote.mapper.toDomain
 import com.dealshot.app.data.remote.repository.SavedVideosRepository
+import com.dealshot.app.data.remote.repository.SeriesRepository
+import com.dealshot.app.data.remote.repository.SeriesRepositoryImpl
 import com.dealshot.app.data.remote.repository.VideoDetailsRepository
 import com.dealshot.app.data.remote.repository.VideoRepository
 import com.dealshot.app.data.remote.repository.VideoRepositoryImpl
 import com.dealshot.app.data.remote.repository.like.LikedVideosRepository
+import com.dealshot.app.data.remote.repository.report.ReportRepository
+import com.dealshot.app.data.remote.repository.report.ReportRepositoryImpl
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,11 +28,21 @@ class DetailsViewModel(
     private val videoDetailsRepository: VideoDetailsRepository,
     private val savedVideosRepository: SavedVideosRepository,
     private val likedVideosRepository: LikedVideosRepository,
+    seriesRepository: SeriesRepository? = null,
+    reportRepository: ReportRepository? = null,
     videoRepository: VideoRepository? = null
 ) : ViewModel() {
 
     private val videoRepo: VideoRepository by lazy {
         videoRepository ?: VideoRepositoryImpl(ApiClient.videoApi)
+    }
+
+    private val seriesRepo: SeriesRepository by lazy {
+        seriesRepository ?: SeriesRepositoryImpl(ApiClient.seriesApiService)
+    }
+
+    private val reportRepo: ReportRepository by lazy {
+        reportRepository ?: ReportRepositoryImpl(ApiClient.reportApiService)
     }
 
     private val _uiState = MutableStateFlow(DetailsState())
@@ -40,6 +54,8 @@ class DetailsViewModel(
         when (intent) {
             is DetailsIntent.Initialize -> {
                 val initialId = intent.video.apiId.ifBlank { intent.video.id }
+                val isSeriesCategory = intent.video.category.trim().equals("Web Series", ignoreCase = true)
+
                 _uiState.update {
                     it.copy(
                         video = intent.video,
@@ -47,19 +63,33 @@ class DetailsViewModel(
                         isLoading = true,
                         error = null,
                         isInMyWatchLater = false,
-                        isLiked = false
+                        isLiked = false,
+                        isReported = false,
+                        isSeries = isSeriesCategory,
+                        seasons = emptyList(),
+                        episodes = emptyList(),
+                        continueWatching = null,
+                        activeEpisodeDetails = null,
+                        episodeNavigation = null,
+                        autoplayInfo = null
                     )
                 }
 
                 loadVideoDetails(initialId)
                 loadVideoLikeStatus(initialId)
+                loadReportStatus(initialId)
                 loadMyWatchListStatus(initialId)
                 loadNextVideos(category = intent.video.category, currentVideoId = initialId)
+
+                if (isSeriesCategory) {
+                    loadSeriesData(initialId)
+                }
             }
 
             is DetailsIntent.SelectNextVideo -> {
                 val domainVideo = intent.videoDto.toDomain(intent.videoDto.id)
                 val targetId = domainVideo.apiId.ifBlank { domainVideo.id }
+                val isSeriesCategory = domainVideo.category.trim().equals("Web Series", ignoreCase = true)
 
                 _uiState.update {
                     it.copy(
@@ -68,14 +98,86 @@ class DetailsViewModel(
                         isLoading = true,
                         error = null,
                         isInMyWatchLater = false,
-                        isLiked = false
+                        isLiked = false,
+                        isReported = false,
+                        isSeries = isSeriesCategory,
+                        seasons = emptyList(),
+                        episodes = emptyList(),
+                        continueWatching = null,
+                        activeEpisodeDetails = null,
+                        episodeNavigation = null,
+                        autoplayInfo = null
                     )
                 }
 
                 loadVideoDetails(targetId)
                 loadVideoLikeStatus(targetId)
+                loadReportStatus(targetId)
                 loadMyWatchListStatus(targetId)
                 loadNextVideos(category = domainVideo.category, currentVideoId = targetId)
+
+                if (isSeriesCategory) {
+                    loadSeriesData(targetId)
+                }
+            }
+
+            is DetailsIntent.SelectSeason -> {
+                val seriesId = getVideoId() ?: return
+                loadSeasonEpisodes(seriesId, intent.seasonNumber)
+            }
+
+            is DetailsIntent.SelectEpisode -> {
+                loadEpisodeAndPlay(intent.episode.id)
+            }
+
+            is DetailsIntent.SelectEpisodeById -> {
+                loadEpisodeAndPlay(intent.episodeId)
+            }
+
+            is DetailsIntent.SelectEpisodeQuality -> {
+                selectEpisodeQuality(intent.episodeId, intent.quality)
+            }
+
+            is DetailsIntent.CheckAutoplayNext -> {
+                checkAutoplayNext(intent.episodeId)
+            }
+
+            DetailsIntent.PreviousEpisodeClicked -> {
+                val prevId = _uiState.value.episodeNavigation?.previous?.episodeId
+                if (!prevId.isNullOrBlank()) {
+                    loadEpisodeAndPlay(prevId)
+                }
+            }
+
+            DetailsIntent.NextEpisodeClicked -> {
+                val nextId = _uiState.value.episodeNavigation?.next?.episodeId
+                if (!nextId.isNullOrBlank()) {
+                    loadEpisodeAndPlay(nextId, startFromBeginning = true)
+                }
+            }
+
+            DetailsIntent.WatchFirstEpisodeClicked -> {
+                val continueWatching = _uiState.value.continueWatching
+                val targetEpisodeId = if (continueWatching != null && !continueWatching.completed && continueWatching.episodeId.isNotBlank()) {
+                    continueWatching.episodeId
+                } else {
+                    _uiState.value.episodes.firstOrNull()?.id
+                }
+
+                if (!targetEpisodeId.isNullOrBlank()) {
+                    loadEpisodeAndPlay(targetEpisodeId)
+                } else {
+                    val seriesId = getVideoId()
+                    if (seriesId != null) {
+                        viewModelScope.launch {
+                            val firstSeasonNum = _uiState.value.seasons.firstOrNull()?.seasonNumber ?: 1
+                            val res = seriesRepo.getSeasonEpisodes(seriesId, firstSeasonNum)
+                            res.getOrNull()?.firstOrNull()?.id?.let { epId ->
+                                loadEpisodeAndPlay(epId)
+                            }
+                        }
+                    }
+                }
             }
 
             DetailsIntent.BackClicked ->
@@ -95,6 +197,139 @@ class DetailsViewModel(
 
             DetailsIntent.ClearError ->
                 _uiState.update { it.copy(error = null) }
+        }
+    }
+
+    private fun loadSeriesData(seriesId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingSeasons = true) }
+
+            val seasonsResult = seriesRepo.getSeriesSeasons(seriesId)
+            val seasons = seasonsResult.getOrDefault(emptyList()).sortedBy { it.seasonNumber }
+            val firstSeasonNumber = seasons.firstOrNull()?.seasonNumber ?: 1
+
+            _uiState.update {
+                it.copy(
+                    seasons = seasons,
+                    selectedSeasonNumber = firstSeasonNumber,
+                    isLoadingSeasons = false
+                )
+            }
+
+            if (seasons.isNotEmpty()) {
+                loadSeasonEpisodes(seriesId, firstSeasonNumber)
+            }
+
+            val progressResult = seriesRepo.getSeriesProgress(seriesId)
+            progressResult.getOrNull()?.let { progress ->
+                _uiState.update { current ->
+                    current.copy(continueWatching = progress.continueWatching)
+                }
+            }
+        }
+    }
+
+    private fun loadSeasonEpisodes(seriesId: String, seasonNumber: Int) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingEpisodes = true,
+                    selectedSeasonNumber = seasonNumber
+                )
+            }
+
+            val result = seriesRepo.getSeasonEpisodes(seriesId, seasonNumber)
+            val episodes = result.getOrDefault(emptyList()).sortedBy { it.episodeNumber }
+
+            _uiState.update {
+                it.copy(
+                    episodes = episodes,
+                    isLoadingEpisodes = false
+                )
+            }
+        }
+    }
+
+    private fun loadEpisodeAndPlay(episodeId: String, startFromBeginning: Boolean = false) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+
+            val result = seriesRepo.getEpisodeDetails(episodeId)
+            result.fold(
+                onSuccess = { details ->
+                    _uiState.update {
+                        it.copy(
+                            activeEpisodeDetails = details,
+                            isLoading = false
+                        )
+                    }
+
+                    // Fetch navigation info and report status
+                    loadEpisodeNavigation(episodeId)
+                    loadReportStatus(episodeId)
+
+                    val playbackUrl = details.playback?.masterUrl.orEmpty()
+                    val title = details.episode?.title ?: "Episode ${details.episode?.episodeNumber ?: ""}"
+                    val resumePosMs = if (startFromBeginning) 0L else (details.resumePosition * 1000L).coerceAtLeast(0L)
+
+                    sendEffect(
+                        DetailsEffect.PlayEpisode(
+                            episodeId = episodeId,
+                            playbackUrl = playbackUrl,
+                            episodeTitle = title,
+                            resumePositionMs = resumePosMs
+                        )
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = AppErrorHandler.getUserMessage(error)
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    private fun loadEpisodeNavigation(episodeId: String) {
+        viewModelScope.launch {
+            val navResult = seriesRepo.getEpisodeNavigation(episodeId)
+            navResult.getOrNull()?.let { nav ->
+                _uiState.update { it.copy(episodeNavigation = nav) }
+            }
+        }
+    }
+
+    private fun checkAutoplayNext(episodeId: String) {
+        viewModelScope.launch {
+            val res = seriesRepo.getAutoplayNext(episodeId)
+            res.getOrNull()?.let { autoplay ->
+                _uiState.update { it.copy(autoplayInfo = autoplay) }
+            }
+        }
+    }
+
+    private fun selectEpisodeQuality(episodeId: String, quality: String) {
+        viewModelScope.launch {
+            val res = seriesRepo.selectEpisodePlaybackQuality(episodeId, quality)
+            res.fold(
+                onSuccess = { qualityResp ->
+                    if (qualityResp.playbackUrl.isNotBlank()) {
+                        _uiState.update {
+                            it.copy(
+                                selectedEpisodeQuality = qualityResp.quality,
+                                episodePlaybackUrl = qualityResp.playbackUrl
+                            )
+                        }
+                        sendEffect(DetailsEffect.UpdateEpisodeQualityUrl(qualityResp.playbackUrl))
+                    }
+                },
+                onFailure = { error ->
+                    Log.w("DetailsVM", "Failed to select episode quality: $quality", error)
+                }
+            )
         }
     }
 
@@ -162,6 +397,19 @@ class DetailsViewModel(
                 throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLiked = false) }
+            }
+        }
+    }
+
+    private fun loadReportStatus(videoId: String) {
+        if (videoId.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val res = reportRepo.getReportStatus(videoId)
+                val isReported = res.getOrDefault(false)
+                _uiState.update { it.copy(isReported = isReported) }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isReported = false) }
             }
         }
     }
@@ -278,12 +526,19 @@ class DetailsViewModel(
             try {
                 val details = videoDetailsRepository.getVideoDetails(videoId)
 
+                val isSeriesCat = details.category?.trim()?.equals("Web Series", ignoreCase = true) == true
+
                 _uiState.update { current ->
                     current.copy(
                         videoDetails = details,
+                        isSeries = current.isSeries || isSeriesCat,
                         isLoading = false,
                         error = null
                     )
+                }
+
+                if (isSeriesCat) {
+                    loadSeriesData(videoId)
                 }
 
                 // If details category is available, refresh next videos list with exact category

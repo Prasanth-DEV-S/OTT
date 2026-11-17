@@ -12,12 +12,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.receiveAsFlow
+import com.dealshot.app.data.preferences.PreferenceManager
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @OptIn(FlowPreview::class)
 class SearchViewModel(
-    private val searchRepository: SearchRepository
+    private val searchRepository: SearchRepository,
+    private val preferenceManager: PreferenceManager? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SearchState())
@@ -32,6 +34,12 @@ class SearchViewModel(
 
     init {
         observeQueryChanges()
+        if (preferenceManager != null) {
+            val saved = preferenceManager.getRecentSearches()
+            if (saved.isNotEmpty()) {
+                _uiState.update { it.copy(recentSearches = saved.take(6)) }
+            }
+        }
     }
 
     private fun observeQueryChanges() {
@@ -90,11 +98,14 @@ class SearchViewModel(
 
             is SearchIntent.RemoveRecentSearch -> {
                 _uiState.update { state ->
-                    state.copy(recentSearches = state.recentSearches.filterNot { it.equals(intent.query, ignoreCase = true) })
+                    val updated = state.recentSearches.filterNot { it.equals(intent.query, ignoreCase = true) }
+                    preferenceManager?.saveRecentSearches(updated)
+                    state.copy(recentSearches = updated)
                 }
             }
 
             SearchIntent.ClearAllRecentSearches -> {
+                preferenceManager?.saveRecentSearches(emptyList())
                 _uiState.update { it.copy(recentSearches = emptyList()) }
             }
 
@@ -144,6 +155,9 @@ class SearchViewModel(
 
             result.fold(
                 onSuccess = { searchResult ->
+                    if (searchResult.items.isNotEmpty()) {
+                        addRecentSearch(trimmed)
+                    }
                     _uiState.update {
                         it.copy(
                             results = searchResult.items,
@@ -205,9 +219,10 @@ class SearchViewModel(
 
     private fun addRecentSearch(query: String) {
         val clean = query.trim()
-        if (clean.isBlank()) return
+        if (clean.isBlank() || clean.length < 2) return
         _uiState.update { state ->
-            val updated = (listOf(clean) + state.recentSearches.filterNot { it.equals(clean, ignoreCase = true) }).take(8)
+            val updated = (listOf(clean) + state.recentSearches.filterNot { it.equals(clean, ignoreCase = true) }).take(6)
+            preferenceManager?.saveRecentSearches(updated)
             state.copy(recentSearches = updated)
         }
     }

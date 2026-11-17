@@ -105,6 +105,7 @@ fun ProfileRoute(
 
     val accountEmail = state.accountEmail.ifBlank { state.email }
     val accountGender = state.accountGender.ifBlank { state.gender }
+    val subscriptionEndDate = state.subscriptionState.endDate
 
     ProfileScreen(
         state = state,
@@ -112,6 +113,7 @@ fun ProfileRoute(
         email = accountEmail,
         gender = accountGender,
         subscriptionLabel = subscriptionLabel,
+        subscriptionEndDate = subscriptionEndDate,
         profiles = displayProfiles,
         selectedProfileId = state.selectedProfile?.profileId ?: state.profiles.firstOrNull { it.isActive }?.profileId,
         isSaving = state.isSaving,

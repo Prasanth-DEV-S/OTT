@@ -66,6 +66,8 @@ fun TvDetailsRoute(
                 DetailsEffect.OpenMyList -> onMyListClick()
                 DetailsEffect.Liked -> onLikeClick()
                 DetailsEffect.OpenLogin -> onOpenLogin()
+                is DetailsEffect.PlayEpisode -> onPlayVideo()
+                is DetailsEffect.UpdateEpisodeQualityUrl -> Unit
                 // Sharing is not supported on TV.
                 DetailsEffect.ShareVideo -> Unit
             }

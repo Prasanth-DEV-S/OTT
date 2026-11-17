@@ -42,7 +42,7 @@ fun CategoryVideosRoute(
             if (category.equals("Premium", ignoreCase = true)) {
                 val allVideos = repository.getVideos()
                 videos = allVideos.filter {
-                    it.isPremium && !it.videoUrl.isNullOrBlank()
+                    it.isPremium && (it.category?.trim()?.equals("Web Series", ignoreCase = true) == true || !it.videoUrl.isNullOrBlank())
                 }
             } else {
                 val result = repository.getVideosByCategory(category)
@@ -53,8 +53,7 @@ fun CategoryVideosRoute(
                         } else {
                             val allVideos = repository.getVideos()
                             videos = allVideos.filter {
-                                it.category?.trim()?.equals(category.trim(), ignoreCase = true) == true &&
-                                        !it.videoUrl.isNullOrBlank()
+                                it.category?.trim()?.equals(category.trim(), ignoreCase = true) == true
                             }
                         }
                     },
@@ -62,8 +61,7 @@ fun CategoryVideosRoute(
                         try {
                             val allVideos = repository.getVideos()
                             videos = allVideos.filter {
-                                it.category?.trim()?.equals(category.trim(), ignoreCase = true) == true &&
-                                        !it.videoUrl.isNullOrBlank()
+                                it.category?.trim()?.equals(category.trim(), ignoreCase = true) == true
                             }
                         } catch (_: Exception) {
                             videos = emptyList()

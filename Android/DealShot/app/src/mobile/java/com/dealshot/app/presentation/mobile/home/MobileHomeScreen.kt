@@ -4,6 +4,7 @@ import android.util.Log
 import android.widget.Toast
 import android.view.LayoutInflater
 import com.dealshot.app.util.findActivity
+import kotlinx.coroutines.launch
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
@@ -48,6 +49,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -71,6 +73,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,6 +90,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -193,7 +197,8 @@ fun HomeScreen(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return SearchViewModel(
-                    searchRepository = SearchRepositoryImpl(ApiClient.videoApi)
+                    searchRepository = SearchRepositoryImpl(ApiClient.videoApi),
+                    preferenceManager = PreferenceManager(context)
                 ) as T
             }
         }
@@ -493,7 +498,7 @@ private fun PremiumContent(
                     },
                     onMyList = { video ->
                         val preferenceManager = PreferenceManager(context)
-                        val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+                        val isLoggedIn = preferenceManager.isLoggedIn()
                         if (isLoggedIn) {
                             val isSaved = video.id in myWatchLaterVideoIds
                             if (!isSaved) {
@@ -599,7 +604,7 @@ private fun CategoryContent(
 
                     onMyList = { video ->
                         val preferenceManager = PreferenceManager(context)
-                        val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+                        val isLoggedIn = preferenceManager.isLoggedIn()
                         if (isLoggedIn) {
                             val isSaved = video.id in myWatchLaterVideoIds
                             if (!isSaved) {
@@ -1026,7 +1031,7 @@ private fun HomeContent(
 
                     onMyList = { video ->
                         val preferenceManager = PreferenceManager(context)
-                        val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+                        val isLoggedIn = preferenceManager.isLoggedIn()
                         if (isLoggedIn) {
                             val isSaved = video.id in myWatchLaterVideoIds
                             if (!isSaved) {
@@ -1134,6 +1139,14 @@ private fun FeaturedVideoSection(
         mutableStateOf(false)
     }
 
+    var isMuted by remember {
+        mutableStateOf(true)
+    }
+
+    LaunchedEffect(isMuted, exoPlayer) {
+        exoPlayer.volume = if (isMuted) 0f else 1f
+    }
+
     val pagerState = rememberPagerState(
         initialPage = 0, pageCount = { Int.MAX_VALUE })
 
@@ -1145,22 +1158,29 @@ private fun FeaturedVideoSection(
 
     val currentVideo = videos[currentIndex]
 
+    val coroutineScope = rememberCoroutineScope()
+
     /*
      * --------------------------------
      * PLAYER LISTENER
      * --------------------------------
      */
 
-    DisposableEffect(exoPlayer) {
+    DisposableEffect(exoPlayer, pagerState) {
 
         val listener = object : Player.Listener {
 
             override fun onPlaybackStateChanged(
                 playbackState: Int
             ) {
-
                 isBuffering = playbackState == Player.STATE_BUFFERING
 
+                // When promo video ends, scroll to the next banner card
+                if (playbackState == Player.STATE_ENDED) {
+                    coroutineScope.launch {
+                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                    }
+                }
             }
 
             override fun onRenderedFirstFrame() {
@@ -1185,6 +1205,11 @@ private fun FeaturedVideoSection(
                 hasPlayerError = true
                 isBuffering = false
                 isVideoReady = false
+
+                coroutineScope.launch {
+                    delay(4000L)
+                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                }
             }
         }
 
@@ -1226,13 +1251,19 @@ private fun FeaturedVideoSection(
                     MediaItem.fromUri(videoUrl)
                 )
 
-                exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
-                exoPlayer.volume = 0f
+                exoPlayer.repeatMode = Player.REPEAT_MODE_OFF
+                exoPlayer.volume = if (isMuted) 0f else 1f
                 exoPlayer.prepare()
                 exoPlayer.playWhenReady = true
             } catch (e: Exception) {
                 hasPlayerError = true
+                delay(5000L)
+                pagerState.animateScrollToPage(pagerState.currentPage + 1)
             }
+        } else {
+            // No promo video -> wait 5 seconds then advance to next banner
+            delay(5000L)
+            pagerState.animateScrollToPage(pagerState.currentPage + 1)
         }
     }
 
@@ -1428,60 +1459,97 @@ private fun FeaturedVideoSection(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Watch Now Button
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(percent = 50))
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color(0xFFEAE2B7), Color(0xFFD4AF37)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Watch Now Button
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color(0xFFEAE2B7), Color(0xFFD4AF37)
+                                        )
                                     )
                                 )
+                                .clickable { onWatchNow(currentVideo) }
+                                .padding(horizontal = 16.dp, vertical = 6.dp)) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.play_fill),
+                                contentDescription = "Watch Now",
+                                tint = Color.Black,
+                                modifier = Modifier.size(20.dp)
                             )
-                            .clickable { onWatchNow(currentVideo) }
-                            .padding(horizontal = 16.dp, vertical = 6.dp)) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.play_fill),
-                            contentDescription = "Watch Now",
-                            tint = Color.Black,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Watch Now",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Watch Now",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+
+                        // My List Circular Button
+                        val isInMyWatchLater = currentVideo.id in myWatchLaterVideoIds
+
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(Color.White.copy(alpha = 0.2f))
+                                .border(
+                                    1.dp,
+                                    Color.White.copy(alpha = 0.5f),
+                                    RoundedCornerShape(percent = 50)
+                                )
+                                .clickable { onMyList(currentVideo) }) {
+                            Icon(
+                                painter = painterResource(id = if (isInMyWatchLater) R.drawable.checkmark else R.drawable.plus),
+                                contentDescription = if (isInMyWatchLater) "In My List" else "My List",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
 
-                    // My List Circular Button
-                    val isInMyWatchLater = currentVideo.id in myWatchLaterVideoIds
-
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(percent = 50))
-                            .background(Color.White.copy(alpha = 0.2f))
-                            .border(
-                                1.dp,
-                                Color.White.copy(alpha = 0.5f),
-                                RoundedCornerShape(percent = 50)
+                    // MUTE / UNMUTE BUTTON (RIGHT SIDE BOTTOM ON THE BANNER)
+                    if (!currentVideo.promoVideoUrl.isNullOrBlank()) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .border(
+                                    1.dp,
+                                    Color.White.copy(alpha = 0.5f),
+                                    CircleShape
+                                )
+                                .clickable {
+                                    isMuted = !isMuted
+                                    exoPlayer.volume = if (isMuted) 0f else 1f
+                                }
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    id = if (isMuted) R.drawable.speaker_slash_fill else R.drawable.speaker_wave_2_fill
+                                ),
+                                contentDescription = if (isMuted) "Unmute" else "Mute",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
                             )
-                            .clickable { onMyList(currentVideo) }) {
-                        Icon(
-                            painter = painterResource(id = if (isInMyWatchLater) R.drawable.checkmark else R.drawable.plus),
-                            contentDescription = if (isInMyWatchLater) "In My List" else "My List",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        }
                     }
                 }
             }

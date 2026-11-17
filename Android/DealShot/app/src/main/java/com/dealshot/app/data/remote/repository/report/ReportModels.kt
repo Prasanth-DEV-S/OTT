@@ -51,3 +51,25 @@ data class SubmitReportDataDto(
     val createdAt: String? = null,
     val updatedAt: String? = null
 )
+
+@Serializable
+data class ReportStatusResponseDto(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: ReportStatusDataDto? = null
+)
+
+@Serializable
+data class ReportStatusDataDto(
+    val videoId: String = "",
+    val myReportStatus: Boolean = false,
+    val report: ReportDetailDto? = null
+)
+
+@Serializable
+data class ReportDetailDto(
+    val id: String = "",
+    val reason: String? = null,
+    val status: String? = null,
+    val createdAt: String? = null
+)

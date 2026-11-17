@@ -262,11 +262,12 @@ internal fun ProfileAvatar(url: String?, size: Dp, modifier: Modifier = Modifier
     }
 }
 
-/** Plain detail row (icon tile, label, value, optional trailing content). */
+/** Plain detail row (icon tile, label, value, optional subValue, optional trailing content). */
 @Composable
 internal fun AccountDetailRow(
     label: String,
     value: String,
+    subValue: String? = null,
     icon: @Composable () -> Unit,
     trailing: (@Composable () -> Unit)? = null
 ) {
@@ -297,6 +298,17 @@ internal fun AccountDetailRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (!subValue.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subValue,
+                    color = GoldPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
 
         trailing?.invoke()

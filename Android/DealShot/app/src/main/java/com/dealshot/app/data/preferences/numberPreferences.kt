@@ -41,6 +41,35 @@ class PreferenceManager(context: Context) {
     }
 
     /**
+     * Check if user has an active logged in session
+     */
+    fun isLoggedIn(): Boolean {
+        val mobileNo = getString("Mobile_No")
+        val token = getString("token")
+        val mobile = getString("mobile")
+        val userId = getString("user_id")
+        val authToken = getString("auth_token")
+        return mobileNo.isNotBlank() || token.isNotBlank() || mobile.isNotBlank() || userId.isNotBlank() || authToken.isNotBlank()
+    }
+
+    /**
+     * Save recent search queries (max 6)
+     */
+    fun saveRecentSearches(searches: List<String>) {
+        val jsonString = searches.take(6).joinToString("|||")
+        saveString("recent_searches", jsonString)
+    }
+
+    /**
+     * Get recent search queries (max 6)
+     */
+    fun getRecentSearches(): List<String> {
+        val raw = getString("recent_searches")
+        if (raw.isBlank()) return emptyList()
+        return raw.split("|||").map { it.trim() }.filter { it.isNotBlank() }.take(6)
+    }
+
+    /**
      * Clear all saved preferences
      */
     fun clearAll() {

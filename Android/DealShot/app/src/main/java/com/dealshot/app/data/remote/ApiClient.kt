@@ -132,4 +132,7 @@ object ApiClient {
 
     val reportApiService: com.dealshot.app.data.remote.repository.report.ReportApiService =
         retrofit.create(com.dealshot.app.data.remote.repository.report.ReportApiService::class.java)
+
+    val seriesApiService: com.dealshot.app.data.remote.api.SeriesApiService =
+        retrofit.create(com.dealshot.app.data.remote.api.SeriesApiService::class.java)
 }

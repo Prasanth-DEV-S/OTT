@@ -11,10 +11,18 @@ tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+private var lastPopTime = 0L
+
 fun NavController.safePopBackStack(
     context: Context,
     homeRoutePrefix: String = "home"
 ) {
+    val currentTime = System.currentTimeMillis()
+    if (currentTime - lastPopTime < 500L) {
+        return
+    }
+    lastPopTime = currentTime
+
     if (previousBackStackEntry != null) {
         popBackStack()
     } else {

@@ -9,7 +9,7 @@ data class SearchState(
     val results: List<VideoDto> = emptyList(),
     val page: Int = 1,
     val hasNext: Boolean = false,
-    val recentSearches: List<String> = listOf("Action", "Comedy", "Thriller", "Documentary"),
+    val recentSearches: List<String> = emptyList(),
     val suggestedTags: List<String> = listOf("Trending", "Action", "Comedy", "Heist", "Tech", "Food", "Supercars"),
     val error: String? = null,
     val hasSearched: Boolean = false

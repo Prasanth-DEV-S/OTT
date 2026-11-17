@@ -11,9 +11,11 @@ import com.dealshot.app.data.video.Video
 import com.dealshot.app.data.remote.ApiClient.savedVideosApiService
 import com.dealshot.app.data.remote.ApiClient.videoDetailsApiService
 import com.dealshot.app.data.remote.ApiClient.likedVideosApiService
+import com.dealshot.app.data.remote.ApiClient.seriesApiService
 import com.dealshot.app.data.remote.repository.SavedVideosRepositoryImpl
 import com.dealshot.app.data.remote.repository.like.LikedVideosRepositoryImpl
 import com.dealshot.app.data.remote.repository.VideoDetailsRepositoryImpl
+import com.dealshot.app.data.remote.repository.SeriesRepositoryImpl
 import com.dealshot.app.presentation.shared.details.DetailsEffect
 import com.dealshot.app.presentation.shared.details.DetailsIntent
 import com.dealshot.app.presentation.shared.details.DetailsViewModel
@@ -48,16 +50,23 @@ fun MobileDetailsRoute(
             api = likedVideosApiService
         )
     }
+    val seriesRepository = remember {
+        SeriesRepositoryImpl(
+            api = seriesApiService
+        )
+    }
 
     val factory = remember(
         repository,
         savedVideosRepository,
-        likedVideosRepository
+        likedVideosRepository,
+        seriesRepository
     ) {
         DetailsViewModelFactory(
             repository = repository,
             savedVideosRepository = savedVideosRepository,
-            likedVideosRepository = likedVideosRepository
+            likedVideosRepository = likedVideosRepository,
+            seriesRepository = seriesRepository
         )
     }
 
@@ -78,6 +87,12 @@ fun MobileDetailsRoute(
             when (effect) {
                 DetailsEffect.NavigateBack -> onBack()
                 DetailsEffect.OpenPlayer -> onPlayVideo()
+                is DetailsEffect.PlayEpisode -> {
+                    // Handled inside MobileDetailsScreen via activeEpisodeDetails / effect
+                }
+                is DetailsEffect.UpdateEpisodeQualityUrl -> {
+                    // Handled in player
+                }
                 DetailsEffect.OpenMyList -> onMyListClick()
                 DetailsEffect.ShareVideo -> onShareClick()
                 DetailsEffect.Liked -> onLikeClick()
@@ -90,7 +105,7 @@ fun MobileDetailsRoute(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val preferenceManager = remember { com.dealshot.app.data.preferences.PreferenceManager(context) }
-    val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+    val isLoggedIn = preferenceManager.isLoggedIn()
     MobileDetailsScreen(
         video = state.video ?: video,
         nextVideos = state.nextVideos,
@@ -123,16 +138,7 @@ fun MobileDetailsRoute(
             }
         },
         onShareClick = {
-            if (!isLoggedIn) {
-                android.widget.Toast.makeText(
-                    context,
-                    "Please log in to Report this video .",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-                onLoginClick()
-            } else {
-                viewModel.onIntent(DetailsIntent.ShareClicked)
-            }
+            viewModel.onIntent(DetailsIntent.ShareClicked)
         },
         isLiked = state.isLiked,
         isUpdatingLike = state.isUpdatingLike,
@@ -150,6 +156,37 @@ fun MobileDetailsRoute(
             } else {
                 onReportClick()
             }
+        },
+        isReported = state.isReported,
+        isSeries = state.isSeries,
+        seasons = state.seasons,
+        selectedSeasonNumber = state.selectedSeasonNumber,
+        episodes = state.episodes,
+        isLoadingEpisodes = state.isLoadingEpisodes,
+        continueWatching = state.continueWatching,
+        activeEpisodeDetails = state.activeEpisodeDetails,
+        episodeNavigation = state.episodeNavigation,
+        autoplayInfo = state.autoplayInfo,
+        onSeasonSelect = { seasonNum ->
+            viewModel.onIntent(DetailsIntent.SelectSeason(seasonNum))
+        },
+        onEpisodeSelect = { episode ->
+            viewModel.onIntent(DetailsIntent.SelectEpisode(episode))
+        },
+        onWatchFirstEpisodeClick = {
+            viewModel.onIntent(DetailsIntent.WatchFirstEpisodeClicked)
+        },
+        onPreviousEpisodeClick = {
+            viewModel.onIntent(DetailsIntent.PreviousEpisodeClicked)
+        },
+        onNextEpisodeClick = {
+            viewModel.onIntent(DetailsIntent.NextEpisodeClicked)
+        },
+        onCheckAutoplayNext = { epId ->
+            viewModel.onIntent(DetailsIntent.CheckAutoplayNext(epId))
+        },
+        onSelectEpisodeQuality = { epId, qual ->
+            viewModel.onIntent(DetailsIntent.SelectEpisodeQuality(epId, qual))
         }
     )
 }

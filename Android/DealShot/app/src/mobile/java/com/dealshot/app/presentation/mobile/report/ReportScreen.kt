@@ -586,6 +586,13 @@ private fun SuccessDialog(message: String, onDone: () -> Unit) {
                 textAlign = TextAlign.Center
             )
 
+            Text(
+                text = "Thanks, we will review this video.",
+                color = TextMuted,
+                fontSize = 13.5.sp,
+                textAlign = TextAlign.Center
+            )
+
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(

@@ -155,6 +155,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.OutlinedFlag
 import com.dealshot.app.presentation.shared.details.DetailsIntent
 
 // How much of the player height a full 0%..100% swipe needs (1.5 = about 2/3 of the height)
@@ -197,14 +198,31 @@ fun MobileDetailsScreen(
     onLoginClick: () -> Unit = {},
     isPremiumUser: Boolean = false,
     onSubscribeClick: () -> Unit = {},
-    onReportClick: () -> Unit = {}
+    onReportClick: () -> Unit = {},
+    isReported: Boolean = false,
+    isSeries: Boolean = false,
+    seasons: List<com.dealshot.app.data.remote.dto.SeasonDto> = emptyList(),
+    selectedSeasonNumber: Int = 1,
+    episodes: List<com.dealshot.app.data.remote.dto.EpisodeDto> = emptyList(),
+    isLoadingEpisodes: Boolean = false,
+    continueWatching: com.dealshot.app.data.remote.dto.ContinueWatchingDto? = null,
+    activeEpisodeDetails: com.dealshot.app.data.remote.dto.EpisodeDetailsResponseDto? = null,
+    episodeNavigation: com.dealshot.app.data.remote.dto.EpisodeNavigationResponseDto? = null,
+    autoplayInfo: com.dealshot.app.data.remote.dto.EpisodeAutoplayNextResponseDto? = null,
+    onSeasonSelect: (Int) -> Unit = {},
+    onEpisodeSelect: (com.dealshot.app.data.remote.dto.EpisodeDto) -> Unit = {},
+    onWatchFirstEpisodeClick: () -> Unit = {},
+    onPreviousEpisodeClick: () -> Unit = {},
+    onNextEpisodeClick: () -> Unit = {},
+    onCheckAutoplayNext: (String) -> Unit = {},
+    onSelectEpisodeQuality: (String, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
 
     val preferenceManager = PreferenceManager(context)
     // Report is offered only to logged-in users (null hides it in the settings popup)
     val reportAction: (() -> Unit)? =
-        if (!preferenceManager.getString("Mobile_No").isNullOrBlank()) onReportClick else null
+        if (preferenceManager.isLoggedIn()) onReportClick else null
     val heartScale by animateFloatAsState(
         targetValue = if (isLiked) 1.2f else 1f,
         animationSpec = spring(
@@ -224,6 +242,7 @@ fun MobileDetailsScreen(
     val player = remember { com.dealshot.app.core.media.ExoPlayerFactory.createExoPlayer(context) }
     var isPlayerVisible by remember { mutableStateOf(false) }
     var isPromoPlaying by remember { mutableStateOf(false) }
+    var isPromoMuted by remember { mutableStateOf(true) }
     var isFullscreen by remember { mutableStateOf(false) }
     var isPlayerTouched by remember { mutableStateOf(false) }
     var hasShownSubscriptionPopup by remember { mutableStateOf(false) }
@@ -235,15 +254,21 @@ fun MobileDetailsScreen(
 
     var showNextOverlay by remember { mutableStateOf(false) }
     var countdownSeconds by remember { mutableIntStateOf(5) }
+    var startNextFromBeginning by remember { mutableStateOf(false) }
 
-    // Detect when main video ends (Player.STATE_ENDED) to trigger 5-second autoplay countdown
-    // Note: NEVER trigger countdown when promo video ends (isPromoPlaying = true or !isPlayerVisible)
-    DisposableEffect(player, nextVideos, isPlayerVisible, isPromoPlaying) {
+    val activeEpisodeId = activeEpisodeDetails?.episode?.id
+
+    // Detect when main video ends (Player.STATE_ENDED) to trigger autoplay countdown
+    DisposableEffect(player, nextVideos, isPlayerVisible, isPromoPlaying, isSeries, activeEpisodeId) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
-                    if (isPlayerVisible && !isPromoPlaying && nextVideos.isNotEmpty()) {
-                        showNextOverlay = true
+                    if (isPlayerVisible && !isPromoPlaying) {
+                        if (isSeries && !activeEpisodeId.isNullOrBlank()) {
+                            onCheckAutoplayNext(activeEpisodeId)
+                        } else if (nextVideos.isNotEmpty()) {
+                            showNextOverlay = true
+                        }
                     }
                 }
             }
@@ -254,16 +279,51 @@ fun MobileDetailsScreen(
         }
     }
 
-    // 5-second countdown timer ticker
+    // Require login for Series for non-logged-in users
+    LaunchedEffect(isSeries) {
+        if (isSeries && !preferenceManager.isLoggedIn()) {
+            activity?.let { act ->
+                showLoginDialog(
+                    activity = act as ComponentActivity,
+                    onSubscribe = { onLoginClick() },
+                    onNotNow = { onBackClick() },
+                    title = "Login Required",
+                    content = "Login to watch the Serice."
+                )
+            }
+        }
+    }
+
+    // Series Autoplay countdown ticker
+    LaunchedEffect(autoplayInfo) {
+        if (isSeries && autoplayInfo?.eligible == true && autoplayInfo.next != null) {
+            val nextEpId = autoplayInfo.next.episodeId
+            if (nextEpId.isNotBlank()) {
+                showNextOverlay = true
+                val totalSec = autoplayInfo.countdownSeconds.coerceAtLeast(1)
+                for (sec in totalSec downTo 1) {
+                    countdownSeconds = sec
+                    delay(1000L)
+                }
+                if (showNextOverlay) {
+                    showNextOverlay = false
+                    startNextFromBeginning = true
+                    onEpisodeSelect(com.dealshot.app.data.remote.dto.EpisodeDto(id = nextEpId))
+                }
+            }
+        }
+    }
+
+    // Normal video autoplay countdown timer ticker
     LaunchedEffect(showNextOverlay) {
-        if (showNextOverlay) {
+        if (showNextOverlay && !isSeries) {
             countdownSeconds = 5
             for (sec in 5 downTo 1) {
                 countdownSeconds = sec
                 delay(1000L)
             }
             val nextVideo = nextVideos.firstOrNull()
-            if (nextVideo != null) {
+            if (nextVideo != null && showNextOverlay) {
                 showNextOverlay = false
                 onSelectNextVideo(nextVideo)
             }
@@ -298,7 +358,9 @@ fun MobileDetailsScreen(
         }
     }
 
-    LaunchedEffect(video.promoVideoUrl, video.url) {
+    LaunchedEffect(video.promoVideoUrl, video.url, isSeries) {
+        if (isSeries) return@LaunchedEffect
+
         delay(5_000L)
 
         val promoUrl = video.promoVideoUrl.trim()
@@ -310,6 +372,7 @@ fun MobileDetailsScreen(
         ) {
             player.setMediaItem(MediaItem.fromUri(promoUrl))
             player.prepare()
+            player.volume = if (isPromoMuted) 0f else 1f
             player.play()
 
             isPromoPlaying = true
@@ -351,7 +414,7 @@ fun MobileDetailsScreen(
                 hasShownSubscriptionPopup = true
                 player.pause()
 
-                val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
+                val isLoggedIn = preferenceManager.isLoggedIn()
 
                 activity?.let { act ->
                     showSubscriptionPreviewDialog(
@@ -385,9 +448,60 @@ fun MobileDetailsScreen(
                 MediaItem.fromUri(actualVideoUrl)
             )
             player.prepare()
+            player.volume = 1f
 
             isPlayerVisible = true
             player.play()
+        }
+    }
+
+    val startPlaybackWithUrl = { mediaUrl: String, startPosMs: Long ->
+        val actualUrl = mediaUrl.trim()
+        if (actualUrl.isNotBlank()) {
+            isPromoPlaying = false
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+                .build()
+
+            player.setMediaItem(MediaItem.fromUri(actualUrl))
+            player.prepare()
+            player.volume = 1f
+            if (startPosMs > 0L) {
+                player.seekTo(startPosMs)
+            }
+            isPlayerVisible = true
+            player.play()
+        }
+    }
+
+    LaunchedEffect(activeEpisodeDetails) {
+        activeEpisodeDetails?.playback?.masterUrl?.takeIf { it.isNotBlank() }?.let { masterUrl ->
+            val resumePosMs = if (startNextFromBeginning) {
+                startNextFromBeginning = false
+                0L
+            } else {
+                (activeEpisodeDetails.resumePosition * 1000L).coerceAtLeast(0L)
+            }
+            startPlaybackWithUrl(masterUrl, resumePosMs)
+        }
+    }
+
+    LaunchedEffect(isPlayerVisible, activeEpisodeId, player) {
+        if (!isPlayerVisible || activeEpisodeId.isNullOrBlank()) return@LaunchedEffect
+
+        while (true) {
+            delay(5000L)
+            val posSec = (player.currentPosition / 1000L).toInt()
+            val durSec = (player.duration / 1000L).toInt()
+            if (posSec > 0 && durSec > 0) {
+                try {
+                    com.dealshot.app.data.remote.ApiClient.seriesApiService.saveEpisodeProgress(
+                        episodeId = activeEpisodeId,
+                        request = com.dealshot.app.data.remote.dto.SaveEpisodeProgressRequestDto(posSec, durSec)
+                    )
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -415,19 +529,37 @@ fun MobileDetailsScreen(
                 onReportClick = reportAction
             )
 
-            if (showNextOverlay && nextVideos.isNotEmpty()) {
-                val nextVideo = nextVideos.first()
-                DetailNextVideoOverlay(
-                    nextVideo = nextVideo,
-                    countdownSeconds = countdownSeconds,
-                    onPlayNow = {
-                        showNextOverlay = false
-                        onSelectNextVideo(nextVideo)
-                    },
-                    onCancel = {
-                        showNextOverlay = false
-                    }
-                )
+            if (showNextOverlay) {
+                if (isSeries && autoplayInfo?.next != null) {
+                    val nextEp = autoplayInfo.next!!
+                    DetailSeriesNextEpisodeOverlay(
+                        seriesTitle = video.title,
+                        nextEpisode = nextEp,
+                        fallbackThumbnail = "",
+                        countdownSeconds = countdownSeconds,
+                        onPlayNow = {
+                            showNextOverlay = false
+                            startNextFromBeginning = true
+                            onEpisodeSelect(com.dealshot.app.data.remote.dto.EpisodeDto(id = nextEp.episodeId))
+                        },
+                        onCancel = {
+                            showNextOverlay = false
+                        }
+                    )
+                } else if (nextVideos.isNotEmpty()) {
+                    val nextVideo = nextVideos.first()
+                    DetailNextVideoOverlay(
+                        nextVideo = nextVideo,
+                        countdownSeconds = countdownSeconds,
+                        onPlayNow = {
+                            showNextOverlay = false
+                            onSelectNextVideo(nextVideo)
+                        },
+                        onCancel = {
+                            showNextOverlay = false
+                        }
+                    )
+                }
             }
         }
         return
@@ -443,6 +575,14 @@ fun MobileDetailsScreen(
         // ------------------------------------------------------------
         // HERO: thumbnail, or inline player once Play is pressed
         // ------------------------------------------------------------
+        val heroThumbnailUrl = remember(video, activeEpisodeDetails, episodes, continueWatching) {
+            listOfNotNull(
+                activeEpisodeDetails?.episode?.thumbnailUrl?.takeIf { it.isNotBlank() },
+                continueWatching?.thumbnailUrl?.takeIf { it.isNotBlank() },
+                episodes.firstOrNull()?.thumbnailUrl?.takeIf { it.isNotBlank() },
+                video.effectiveThumbnail.takeIf { it.isNotBlank() }
+            ).firstOrNull { it.isNotBlank() }.orEmpty()
+        }
 
         if (isPlayerVisible || isPromoPlaying) {
             Box(
@@ -467,23 +607,41 @@ fun MobileDetailsScreen(
                     onReportClick = reportAction
                 )
 
-                if (showNextOverlay && nextVideos.isNotEmpty()) {
-                    val nextVideo = nextVideos.first()
-                    DetailNextVideoOverlay(
-                        nextVideo = nextVideo,
-                        countdownSeconds = countdownSeconds,
-                        onPlayNow = {
-                            showNextOverlay = false
-                            onSelectNextVideo(nextVideo)
-                        },
-                        onCancel = {
-                            showNextOverlay = false
-                        }
-                    )
+                if (showNextOverlay) {
+                    if (isSeries && autoplayInfo?.next != null) {
+                        val nextEp = autoplayInfo.next!!
+                        DetailSeriesNextEpisodeOverlay(
+                            seriesTitle = video.title,
+                            nextEpisode = nextEp,
+                            fallbackThumbnail = heroThumbnailUrl,
+                            countdownSeconds = countdownSeconds,
+                            onPlayNow = {
+                                showNextOverlay = false
+                                startNextFromBeginning = true
+                                onEpisodeSelect(com.dealshot.app.data.remote.dto.EpisodeDto(id = nextEp.episodeId))
+                            },
+                            onCancel = {
+                                showNextOverlay = false
+                            }
+                        )
+                    } else if (nextVideos.isNotEmpty()) {
+                        val nextVideo = nextVideos.first()
+                        DetailNextVideoOverlay(
+                            nextVideo = nextVideo,
+                            countdownSeconds = countdownSeconds,
+                            onPlayNow = {
+                                showNextOverlay = false
+                                onSelectNextVideo(nextVideo)
+                            },
+                            onCancel = {
+                                showNextOverlay = false
+                            }
+                        )
+                    }
                 }
 
-// Show back arrow on promo video always.
-// On the actual video, show it only when player controls are visible.
+                // Show back arrow on promo video always.
+                // On the actual video, show it only when player controls are visible.
                 if (isPromoPlaying || !isPlayerVisible) {
                     IconButton(
                         onClick = onBackClick,
@@ -504,6 +662,34 @@ fun MobileDetailsScreen(
                         )
                     }
                 }
+
+                // Mute / Unmute icon for promo video
+                if (isPromoPlaying) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(12.dp)
+                            .zIndex(10f)
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                            .clickable {
+                                isPromoMuted = !isPromoMuted
+                                player.volume = if (isPromoMuted) 0f else 1f
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                id = if (isPromoMuted) R.drawable.speaker_slash_fill else R.drawable.speaker_wave_2_fill
+                            ),
+                            contentDescription = if (isPromoMuted) "Unmute" else "Mute",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
         } else {
             Box(
@@ -514,7 +700,7 @@ fun MobileDetailsScreen(
                     .clip(RoundedCornerShape(18.dp))
             ) {
                 AsyncImage(
-                    model = video.thumbnailUrl ?: video.thumbnail,
+                    model = heroThumbnailUrl,
                     contentDescription = video.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -560,6 +746,19 @@ fun MobileDetailsScreen(
         // DETAILS
         // ------------------------------------------------------------
 
+        val episodeMetaString = remember(activeEpisodeDetails, selectedSeasonNumber, isSeries) {
+            if (!isSeries) null
+            else {
+                val ep = activeEpisodeDetails?.episode
+                val seasonNum = activeEpisodeDetails?.season?.seasonNumber ?: selectedSeasonNumber
+                if (ep != null) {
+                    "S${seasonNum} E${ep.episodeNumber} • ${ep.title}"
+                } else {
+                    "Season $seasonNum"
+                }
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -580,6 +779,16 @@ fun MobileDetailsScreen(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+
+            if (!episodeMetaString.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = episodeMetaString,
+                    color = Color(0xFFE8C575),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
 
             Spacer(
                 modifier = Modifier.height(8.dp)
@@ -644,8 +853,24 @@ fun MobileDetailsScreen(
             // --------------------------------------------------------
 
             if (!isPlayerVisible) {
+                val buttonText = if (isSeries) {
+                    if (continueWatching != null && !continueWatching.completed && continueWatching.episodeId.isNotBlank()) {
+                        "Continue Watching S${continueWatching.seasonNumber} E${continueWatching.episodeNumber}"
+                    } else {
+                        "Watch First Episode"
+                    }
+                } else {
+                    "Watch Now"
+                }
+
                 Button(
-                    onClick = { startPlayback() },
+                    onClick = {
+                        if (isSeries) {
+                            onWatchFirstEpisodeClick()
+                        } else {
+                            startPlayback()
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -663,7 +888,7 @@ fun MobileDetailsScreen(
                     Spacer(modifier = Modifier.width(6.dp))
 
                     Text(
-                        text = "Watch Now",
+                        text = buttonText,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -715,15 +940,14 @@ fun MobileDetailsScreen(
                     }*/
                     /* this for Log out if the no number 14102026*/
                     onClick = {
-                        if (preferenceManager.getString("Mobile_No").isNullOrBlank()) {
-//                            onLoginClick()
+                        if (!preferenceManager.isLoggedIn()) {
                             activity?.let { act ->
                                 showLoginDialog(
                                     activity = act as ComponentActivity,
                                     onSubscribe = { onLoginClick() },
                                     onNotNow = { onBackClick() },
-                                    "Continue watching",
-                                    "Please log in to Add this video to your list."
+                                    "Login Required",
+                                    "Please log in to add this video to your list."
                                 )
                             }
                         } else {
@@ -736,15 +960,13 @@ fun MobileDetailsScreen(
                     modifier = Modifier
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                         .clickable {
-                            /* this for Log out if the no number14102026*/
-                            if (preferenceManager.getString("Mobile_No").isNullOrBlank()) {
-//                                onLoginClick()
+                            if (!preferenceManager.isLoggedIn()) {
                                 activity?.let { act ->
                                     showLoginDialog(
                                         activity = act as ComponentActivity,
                                         onSubscribe = { onLoginClick() },
                                         onNotNow = { onBackClick() },
-                                        "Continue watching",
+                                        "Login Required",
                                         "Please log in to like this video."
                                     )
                                 }
@@ -755,19 +977,13 @@ fun MobileDetailsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
-                        imageVector = if (isLiked) {
-                            Icons.Filled.ThumbUp
-                        } else {
-                            Icons.Outlined.ThumbUp
-                        },
+                        painter = painterResource(
+                            id = if (isLiked) R.drawable.heart_fill else R.drawable.heart
+                        ),
                         contentDescription = if (isLiked) "Unlike" else "Like",
-                        tint = if (isLiked) {
-                            orange
-                        } else {
-                            orange
-                        },
+                        tint = orange,
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(24.dp)
                             .scale(heartScale)
                     )
 
@@ -783,23 +999,29 @@ fun MobileDetailsScreen(
                     icon = Icons.Default.Share,
                     label = "Share",
                     onClick = {
-                        val isLoggedIn = !preferenceManager.getString("Mobile_No").isNullOrBlank()
-
-                        if (!isLoggedIn) {
-                            android.widget.Toast.makeText(context, "Please log in to like this video .", android.widget.Toast.LENGTH_SHORT).show()
-                            onLoginClick()
-                        } else {
-                            showShareDialog = true
-                        }
-
+                        showShareDialog = true
                     }
                 )
 
-                // Report: logged-in users only (same check the Like / My List buttons use)
+                // Report: logged-in users only
                 DetailsActionItem(
-                    icon = Icons.Default.Flag,
+                    icon = if (isReported) Icons.Default.Flag else Icons.Default.OutlinedFlag,
                     label = "Report",
-                    onClick = onReportClick
+                    onClick = {
+                        if (!preferenceManager.isLoggedIn()) {
+                            activity?.let { act ->
+                                showLoginDialog(
+                                    activity = act as ComponentActivity,
+                                    onSubscribe = { onLoginClick() },
+                                    onNotNow = { onBackClick() },
+                                    "Login Required",
+                                    "Please log in to report this video."
+                                )
+                            }
+                        } else {
+                            onReportClick()
+                        }
+                    }
                 )
             }
 
@@ -807,8 +1029,34 @@ fun MobileDetailsScreen(
                 modifier = Modifier.height(10.dp)
             )
 
-            // NEXT VIDEOS SECTION
-            if (nextVideos.isNotEmpty()) {
+            // SERIES SEASONS & EPISODES OR NEXT VIDEOS SECTION
+            if (isSeries) {
+                Spacer(modifier = Modifier.height(18.dp))
+                SeasonEpisodeSection(
+                    seasons = seasons,
+                    selectedSeasonNumber = selectedSeasonNumber,
+                    episodes = episodes,
+                    isLoadingEpisodes = isLoadingEpisodes,
+                    onSeasonSelect = onSeasonSelect,
+                    onEpisodeSelect = { episode ->
+                        if (!preferenceManager.isLoggedIn()) {
+                            activity?.let { act ->
+                                showLoginDialog(
+                                    activity = act as ComponentActivity,
+                                    onSubscribe = { onLoginClick() },
+                                    onNotNow = { onBackClick() },
+                                    title = "Login Required",
+                                    content = "Login to watch the Serice."
+                                )
+                            }
+                        } else if (episode.isLocked) {
+                            onSubscribeClick()
+                        } else {
+                            onEpisodeSelect(episode)
+                        }
+                    }
+                )
+            } else if (nextVideos.isNotEmpty()) {
                 val nextVideosAsVideo = remember(nextVideos) {
                     nextVideos.map { dto ->
                         Video(
@@ -1346,6 +1594,16 @@ private fun InlinePlayer(
     var gestureVisible by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var gestureTick by remember { mutableIntStateOf(0) }
+    var showStartHint by remember { mutableStateOf(false) }
+
+    // Show 2-second gesture indicators on video start
+    LaunchedEffect(showControls, isPromoPlaying) {
+        if (showControls && !isPromoPlaying) {
+            showStartHint = true
+            delay(2000L)
+            showStartHint = false
+        }
+    }
 
     // Hide the indicator ~1.5s after the finger is lifted (restarts on every new gesture)
     LaunchedEffect(gestureTick, isDragging) {
@@ -1388,7 +1646,7 @@ private fun InlinePlayer(
                     }
                 } else Modifier
             )
-            // Vertical swipe: left half = brightness, right half = volume (off while the menu is open)
+            // Vertical swipe: left half = volume, right half = brightness (off while the menu is open)
             .then(
                 if (showControls && !settingsOpen) {
                     Modifier.pointerInput(Unit) {
@@ -1398,13 +1656,13 @@ private fun InlinePlayer(
                         detectVerticalDragGestures(
                             onDragStart = { offset ->
                                 activeType = if (offset.x < size.width / 2f) {
-                                    GestureType.BRIGHTNESS
-                                } else {
                                     GestureType.VOLUME
+                                } else {
+                                    GestureType.BRIGHTNESS
                                 }
                                 level = when (activeType) {
-                                    GestureType.BRIGHTNESS -> readBrightness(activity)
                                     GestureType.VOLUME -> readVolumeFraction(audioManager)
+                                    GestureType.BRIGHTNESS -> readBrightness(activity)
                                 }
                                 gestureType = activeType
                                 gestureValue = level
@@ -1652,7 +1910,52 @@ private fun InlinePlayer(
         }
 
         // ------------------------------------------------------------
-        // volume / brightness indicator (brightness = left, volume = right)
+        // 2-Second Start Hint Indicators (Volume = Left, Brightness = Right)
+        // ------------------------------------------------------------
+        AnimatedVisibility(
+            visible = showStartHint && !gestureVisible,
+            enter = fadeIn() + scaleIn(initialScale = 0.85f),
+            exit = fadeOut() + scaleOut(targetScale = 0.85f),
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .then(
+                    if (isFullscreen) {
+                        Modifier.windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+                        )
+                    } else Modifier
+                )
+                .padding(horizontal = 24.dp)
+        ) {
+            GestureIndicator(
+                type = GestureType.VOLUME,
+                value = readVolumeFraction(audioManager)
+            )
+        }
+
+        AnimatedVisibility(
+            visible = showStartHint && !gestureVisible,
+            enter = fadeIn() + scaleIn(initialScale = 0.85f),
+            exit = fadeOut() + scaleOut(targetScale = 0.85f),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .then(
+                    if (isFullscreen) {
+                        Modifier.windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+                        )
+                    } else Modifier
+                )
+                .padding(horizontal = 24.dp)
+        ) {
+            GestureIndicator(
+                type = GestureType.BRIGHTNESS,
+                value = readBrightness(activity)
+            )
+        }
+
+        // ------------------------------------------------------------
+        // volume / brightness gesture indicator (volume = left, brightness = right)
         // ------------------------------------------------------------
         AnimatedVisibility(
             visible = gestureVisible,
@@ -1660,7 +1963,7 @@ private fun InlinePlayer(
             exit = fadeOut() + scaleOut(targetScale = 0.85f),
             modifier = Modifier
                 .align(
-                    if (gestureType == GestureType.BRIGHTNESS) Alignment.CenterStart
+                    if (gestureType == GestureType.VOLUME) Alignment.CenterStart
                     else Alignment.CenterEnd
                 )
                 .then(
@@ -2328,6 +2631,156 @@ private fun DetailNextVideoOverlay(
 
             Text(
                 text = "Playing next video in $countdownSeconds seconds...",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = onPlayNow,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5C85A), contentColor = Color.Black),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Play Now", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailSeriesNextEpisodeOverlay(
+    seriesTitle: String,
+    nextEpisode: com.dealshot.app.data.remote.dto.EpisodeNavigationItemDto,
+    fallbackThumbnail: String,
+    countdownSeconds: Int,
+    onPlayNow: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xEC090C10))
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "UP NEXT IN SERIES",
+                color = Color(0xFFF5C85A),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF131722))
+                    .border(1.dp, Color(0xFF242C3D), RoundedCornerShape(12.dp))
+                    .clickable { onPlayNow() }
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(110.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1E232F))
+                ) {
+                    val thumbModel = nextEpisode.thumbnailUrl?.takeIf { it.isNotBlank() } ?: fallbackThumbnail
+                    AsyncImage(
+                        model = thumbModel,
+                        contentDescription = nextEpisode.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = seriesTitle.ifBlank { "Web Series" },
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val epTitle = nextEpisode.title.ifBlank { "Episode ${nextEpisode.episodeNumber}" }
+                    Text(
+                        text = "Season ${nextEpisode.seasonNumber} Episode ${nextEpisode.episodeNumber} • $epTitle",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 12.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(35.dp)
+            ) {
+                CircularProgressIndicator(
+                    progress = { (6 - countdownSeconds) / 5f },
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color(0xFFF5C85A),
+                    strokeWidth = 2.dp,
+                    trackColor = Color.White.copy(alpha = 0.2f)
+                )
+                Text(
+                    text = "$countdownSeconds",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "Playing next episode in $countdownSeconds seconds...",
                 color = Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium

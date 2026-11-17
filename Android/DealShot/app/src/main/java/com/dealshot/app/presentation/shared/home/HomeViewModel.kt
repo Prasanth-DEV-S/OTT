@@ -167,14 +167,33 @@ class HomeViewModel(
         categories: List<VideoCategory>,
         allVideos: List<VideoDto>
     ): List<String> {
+        val excludedCategories = setOf("banner", "images")
+
+        val dynamicCategories = categories
+            .map { it.name.trim() }
+            .filter { name -> name.isNotBlank() && name.lowercase() !in excludedCategories }
+
         return buildList {
             add("Home")
-            add("National")
-            add("International")
-            add("Motivational")
-            add("Inspiration")
-            add("Academic")
-            add("Series")
+            if (dynamicCategories.isNotEmpty()) {
+//                17-11-2026
+//                addAll(dynamicCategories)
+                add("National")
+                add("International")
+                add("Motivational")
+                add("Inspiration")
+                add("Academic")
+                add("Web Series")
+                Log.i("dynamicCategories", dynamicCategories.toString())
+            } else {
+                add("National")
+                add("International")
+                add("Motivational")
+                add("Inspirational")
+                add("Academic")
+                add("Web Series")
+                add("Gold Sikka Events")
+            }
         }.distinct()
     }
 
@@ -271,6 +290,7 @@ class HomeViewModel(
                         likedVideos = emptyList(),
                         myListVideos = emptyList(),
                         myWatchLaterVideoIds = savedIds,
+                        sections = buildSections(it.categories, videos),
                         error = null
                     )
                 }
@@ -352,7 +372,6 @@ class HomeViewModel(
                             }
                     }
                     .distinctBy { it.name.lowercase() }
-                    .sortedBy { it.name }
 
                 _uiState.update { currentState ->
                     currentState.copy(

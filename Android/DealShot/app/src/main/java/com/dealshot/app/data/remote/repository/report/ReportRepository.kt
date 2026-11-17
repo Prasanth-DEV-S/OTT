@@ -8,6 +8,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 import kotlin.coroutines.cancellation.CancellationException
 
 interface ReportApiService {
@@ -16,11 +17,15 @@ interface ReportApiService {
 
     @POST("reports")
     suspend fun submitReport(@Body body: SubmitReportRequestDto): Response<SubmitReportResponseDto>
+
+    @GET("reports/status/{videoId}")
+    suspend fun getReportStatus(@Path("videoId") videoId: String): Response<ReportStatusResponseDto>
 }
 
 interface ReportRepository {
     suspend fun getMasterData(): Result<List<ReportReason>>
     suspend fun submitReport(request: SubmitReportRequestDto): Result<SubmitReportResponseDto>
+    suspend fun getReportStatus(videoId: String): Result<Boolean>
 }
 
 class ReportRepositoryImpl(
@@ -72,6 +77,23 @@ class ReportRepositoryImpl(
             throw e
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    override suspend fun getReportStatus(videoId: String): Result<Boolean> {
+        return try {
+            val response = api.getReportStatus(videoId)
+            val body = response.body()
+
+            if (response.isSuccessful && body?.success == true) {
+                Result.success(body.data?.myReportStatus ?: false)
+            } else {
+                Result.success(false)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            Result.success(false)
         }
     }
 

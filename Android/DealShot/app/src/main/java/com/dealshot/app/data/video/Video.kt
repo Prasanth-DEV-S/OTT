@@ -47,6 +47,9 @@ data class Video(
     fun isHlsCategory(): Boolean {
         return category.trim().equals("International", ignoreCase = true)
     }
+
+    val effectiveThumbnail: String
+        get() = listOf(thumbnailUrl, thumbnail).firstOrNull { it.isNotBlank() }.orEmpty()
 }
 
 fun isHlsCategory(category: String?): Boolean {

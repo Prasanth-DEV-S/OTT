@@ -90,7 +90,7 @@ fun CategoryVideosScreen(
                 ) {
 
                     AsyncImage(
-                        model = video.thumbnailUrl ?: video.thumbnail,
+                        model = video.effectiveThumbnail,
                         contentDescription = video.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

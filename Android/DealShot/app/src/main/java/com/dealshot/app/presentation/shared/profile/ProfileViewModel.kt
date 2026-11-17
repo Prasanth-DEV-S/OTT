@@ -124,7 +124,21 @@ class ProfileViewModel(
 
             is ProfileIntent.UploadCustomAvatar -> uploadCustomAvatar(intent.context, intent.uri)
 
-            ProfileIntent.BackClicked -> sendEffect(ProfileEffect.NavigateBack)
+            ProfileIntent.BackClicked -> {
+                if (_uiState.value.isEditingProfile) {
+                    _uiState.update {
+                        it.copy(
+                            isEditingProfile = false,
+                            username = usernameBeforeEdit,
+                            email = emailBeforeEdit,
+                            profileImageUrl = imageBeforeEdit,
+                            error = null
+                        )
+                    }
+                } else {
+                    sendEffect(ProfileEffect.NavigateBack)
+                }
+            }
 
             is ProfileIntent.EditProfileClicked -> {
                 usernameBeforeEdit = _uiState.value.username

@@ -1,16 +1,19 @@
-
 package com.dealshot.app.presentation.shared.details
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.dealshot.app.data.remote.repository.SavedVideosRepository
+import com.dealshot.app.data.remote.repository.SeriesRepository
 import com.dealshot.app.data.remote.repository.VideoDetailsRepository
 import com.dealshot.app.data.remote.repository.like.LikedVideosRepository
+import com.dealshot.app.data.remote.repository.report.ReportRepository
 
 class DetailsViewModelFactory(
     private val repository: VideoDetailsRepository,
     private val savedVideosRepository: SavedVideosRepository,
-    private val likedVideosRepository: LikedVideosRepository
+    private val likedVideosRepository: LikedVideosRepository,
+    private val seriesRepository: SeriesRepository? = null,
+    private val reportRepository: ReportRepository? = null
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -19,7 +22,9 @@ class DetailsViewModelFactory(
             return DetailsViewModel(
                 videoDetailsRepository = repository,
                 savedVideosRepository = savedVideosRepository,
-                likedVideosRepository = likedVideosRepository
+                likedVideosRepository = likedVideosRepository,
+                seriesRepository = seriesRepository,
+                reportRepository = reportRepository
             ) as T
         }
 
