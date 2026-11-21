@@ -1081,6 +1081,7 @@ private fun HomeContent(
                         category, ignoreCase = true
                     ) == true
             }
+            Log.i("availableCategories", availableCategories.toString())
 //            var categoryVideos = categories
 
             if (categoryVideos.isNotEmpty()) {
